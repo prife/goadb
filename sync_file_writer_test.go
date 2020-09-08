@@ -14,7 +14,8 @@ import (
 
 func TestFileWriterWriteSingleChunk(t *testing.T) {
 	var buf bytes.Buffer
-	writer := newSyncFileWriter(wire.NewSyncSender(&buf), MtimeOfClose)
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	n, err := writer.Write([]byte("hello"))
 	assert.NoError(t, err)
@@ -25,7 +26,8 @@ func TestFileWriterWriteSingleChunk(t *testing.T) {
 
 func TestFileWriterWriteMultiChunk(t *testing.T) {
 	var buf bytes.Buffer
-	writer := newSyncFileWriter(wire.NewSyncSender(&buf), MtimeOfClose)
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	n, err := writer.Write([]byte("hello"))
 	assert.NoError(t, err)
@@ -40,7 +42,8 @@ func TestFileWriterWriteMultiChunk(t *testing.T) {
 
 func TestFileWriterWriteLargeChunk(t *testing.T) {
 	var buf bytes.Buffer
-	writer := newSyncFileWriter(wire.NewSyncSender(&buf), MtimeOfClose)
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	// Send just enough data to get 2 chunks.
 	data := make([]byte, wire.SyncMaxChunkSize+1)
@@ -48,7 +51,7 @@ func TestFileWriterWriteLargeChunk(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, wire.SyncMaxChunkSize+1, n)
-	assert.Equal(t, 8 + 8 + wire.SyncMaxChunkSize+1, buf.Len())
+	assert.Equal(t, 8+8+wire.SyncMaxChunkSize+1, buf.Len())
 
 	// First header.
 	chunk := buf.Bytes()[:8+wire.SyncMaxChunkSize]
@@ -58,7 +61,7 @@ func TestFileWriterWriteLargeChunk(t *testing.T) {
 	assert.Equal(t, data[:wire.SyncMaxChunkSize], chunk[8:])
 
 	// Second header.
-	chunk = buf.Bytes()[wire.SyncMaxChunkSize+8:wire.SyncMaxChunkSize+8+1]
+	chunk = buf.Bytes()[wire.SyncMaxChunkSize+8 : wire.SyncMaxChunkSize+8+1]
 	expectedHeader = []byte("DATA\000\000\000\000")
 	binary.LittleEndian.PutUint32(expectedHeader[4:], 1)
 	assert.Equal(t, expectedHeader, chunk[:8])
@@ -67,7 +70,8 @@ func TestFileWriterWriteLargeChunk(t *testing.T) {
 func TestFileWriterCloseEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	writer := newSyncFileWriter(wire.NewSyncSender(&buf), mtime)
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	writer := newSyncFileWriter(syncConn, mtime)
 
 	assert.NoError(t, writer.Close())
 
@@ -77,7 +81,8 @@ func TestFileWriterCloseEmpty(t *testing.T) {
 func TestFileWriterWriteClose(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	writer := newSyncFileWriter(wire.NewSyncSender(&buf), mtime)
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	writer := newSyncFileWriter(syncConn, mtime)
 
 	writer.Write([]byte("hello"))
 	assert.NoError(t, writer.Close())
@@ -87,7 +92,8 @@ func TestFileWriterWriteClose(t *testing.T) {
 
 func TestFileWriterCloseAutoMtime(t *testing.T) {
 	var buf bytes.Buffer
-	writer := newSyncFileWriter(wire.NewSyncSender(&buf), MtimeOfClose)
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	assert.NoError(t, writer.Close())
 	assert.Len(t, buf.String(), 8)

@@ -18,14 +18,16 @@ type syncFileWriter struct {
 
 	// Reader used to read data from the adb connection.
 	sender wire.SyncSender
+	scanner wire.SyncScanner
 }
 
 var _ io.WriteCloser = &syncFileWriter{}
 
-func newSyncFileWriter(s wire.SyncSender, mtime time.Time) io.WriteCloser {
+func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) io.WriteCloser {
 	return &syncFileWriter{
 		mtime:  mtime,
-		sender: s,
+		sender: s.SyncSender,
+		scanner: s.SyncScanner,
 	}
 }
 
@@ -80,6 +82,10 @@ func (w *syncFileWriter) Close() error {
 	}
 	if err := w.sender.SendTime(w.mtime); err != nil {
 		return errors.WrapErrf(err, "error writing file modification time")
+	}
+
+	if status, err := w.scanner.ReadStatus(""); err != nil || status != wire.StatusSuccess {
+		return errors.WrapErrf(w.scanner.Close(), "error reading status, should receive 'ID_OKAY'")
 	}
 
 	return errors.WrapErrf(w.sender.Close(), "error closing FileWriter")
