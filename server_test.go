@@ -28,9 +28,9 @@ func TestNewServer_ZeroConfig(t *testing.T) {
 	server := serverIf.(*realServer)
 	assert.NoError(t, err)
 	assert.IsType(t, tcpDialer{}, server.config.Dialer)
-	assert.Equal(t, "localhost", server.config.Host)
+	assert.Equal(t, "127.0.0.1", server.config.Host)
 	assert.Equal(t, AdbPort, server.config.Port)
-	assert.Equal(t, fmt.Sprintf("localhost:%d", AdbPort), server.address)
+	assert.Equal(t, fmt.Sprintf("127.0.0.1:%d", AdbPort), server.address)
 	assert.Equal(t, "/bin/adb", server.config.PathToAdb)
 }
 

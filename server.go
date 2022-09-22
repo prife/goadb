@@ -62,7 +62,7 @@ func newServer(config ServerConfig) (server, error) {
 	}
 
 	if config.Host == "" {
-		config.Host = "localhost"
+		config.Host = "127.0.0.1"
 	}
 	if config.Port == 0 {
 		config.Port = AdbPort
