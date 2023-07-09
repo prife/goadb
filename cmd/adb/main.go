@@ -10,7 +10,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/cheggaaa/pb"
-	"github.com/zach-klippenstein/goadb"
+	adb "github.com/zach-klippenstein/goadb"
 )
 
 const StdIoFilename = "-"
@@ -106,17 +106,27 @@ func listDevices(long bool) int {
 	}
 
 	for _, device := range devices {
-		if long {
-			if device.Usb == "" {
-				fmt.Printf("%s\tproduct:%s model:%s device:%s\n",
-					device.Serial, device.Product, device.Model, device.DeviceInfo)
-			} else {
-				fmt.Printf("%s\tusb:%s product:%s model:%s device:%s\n",
-					device.Serial, device.Usb, device.Product, device.Model, device.DeviceInfo)
-			}
-		} else {
-			fmt.Println(device.Serial)
+		fmt.Printf("%s\t %s ", device.Serial, device.State)
+		if device.Usb != "" {
+			fmt.Printf("usb:%s ", device.Usb)
 		}
+
+		if device.Product != "" {
+			fmt.Printf("product:%s ", device.Product)
+		}
+
+		if device.Model != "" {
+			fmt.Printf("model:%s ", device.Model)
+		}
+
+		if device.DeviceInfo != "" {
+			fmt.Printf("device:%s ", device.DeviceInfo)
+		}
+
+		if device.TransportID != 0 {
+			fmt.Printf("transport_id:%d ", device.TransportID)
+		}
+		fmt.Printf("\n")
 	}
 
 	return 0
