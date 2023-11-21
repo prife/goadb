@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"runtime"
@@ -126,6 +127,18 @@ func publishDevices(watcher *deviceWatcherImpl) {
 
 		if HasErrCode(err, ConnectionResetError) {
 			// The server died, restart and reconnect.
+			if realServer, ok := watcher.server.(*realServer); ok {
+				if !realServer.config.AutoStart {
+					watcher.reportErr(fmt.Errorf("server killed"))
+					return
+				}
+			}
+
+			// report all devices removed
+			for serial, deviceState := range lastKnownStates {
+				watcher.eventChan <- DeviceStateChangedEvent{serial, deviceState, StateDisconnected}
+			}
+			lastKnownStates = nil
 
 			// Delay by a random [0ms, 500ms) in case multiple DeviceWatchers are trying to
 			// start the same server.

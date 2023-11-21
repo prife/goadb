@@ -21,7 +21,7 @@ const (
 type ServerConfig struct {
 	// Path to the adb executable. If empty, the PATH environment variable will be searched.
 	PathToAdb string
-
+	AutoStart bool
 	// Host and port the adb server is listening on.
 	// If not specified, will use the default port on localhost.
 	Host string
@@ -109,7 +109,7 @@ func (s *realServer) Dial() (*wire.Conn, error) {
 
 // StartServer ensures there is a server running.
 func (s *realServer) Start() error {
-	output, err := s.config.fs.CmdCombinedOutput(s.config.PathToAdb, "-L", fmt.Sprintf("tcp:%s", s.address), "start-server")
+	output, err := s.config.fs.CmdCombinedOutput(s.config.PathToAdb /*"-L", fmt.Sprintf("tcp:%s", s.address),*/, "start-server")
 	outputStr := strings.TrimSpace(string(output))
 	return errors.WrapErrorf(err, errors.ServerNotAvailable, "error starting server: %s\noutput:\n%s", err, outputStr)
 }
