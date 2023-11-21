@@ -2,7 +2,7 @@ package wire
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -75,7 +75,7 @@ func TestSyncReadBytes(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, reader)
 
-	str, err := ioutil.ReadAll(reader)
+	str, err := io.ReadAll(reader)
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", string(str))
 }

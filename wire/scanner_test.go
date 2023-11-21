@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,5 +126,5 @@ func assertNotEof(t *testing.T, r io.Reader) {
 func newEofReader(str string) io.ReadCloser {
 	limitReader := io.LimitReader(bytes.NewBufferString(str), int64(len(str)))
 	bufReader := bufio.NewReader(limitReader)
-	return ioutil.NopCloser(bufReader)
+	return io.NopCloser(bufReader)
 }

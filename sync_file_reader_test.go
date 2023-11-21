@@ -2,7 +2,6 @@ package adb
 
 import (
 	"io"
-	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -99,7 +98,7 @@ func TestReadEmpty(t *testing.T) {
 
 	// Multiple read calls that return EOF is a valid case.
 	for i := 0; i < 5; i++ {
-		data, err := ioutil.ReadAll(r)
+		data, err := io.ReadAll(r)
 		assert.NoError(t, err)
 		assert.Empty(t, data)
 	}

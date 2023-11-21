@@ -3,7 +3,6 @@ package wire
 import (
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"strconv"
 
 	"github.com/zach-klippenstein/goadb/internal/errors"
@@ -70,7 +69,7 @@ func (s *realScanner) ReadMessage() ([]byte, error) {
 }
 
 func (s *realScanner) ReadUntilEof() ([]byte, error) {
-	data, err := ioutil.ReadAll(s.reader)
+	data, err := io.ReadAll(s.reader)
 	if err != nil {
 		return nil, errors.WrapErrorf(err, errors.NetworkError, "error reading until EOF")
 	}

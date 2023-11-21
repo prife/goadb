@@ -4,7 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"time"
 
@@ -149,7 +149,7 @@ func PrintDeviceInfo(device *adb.Device) error {
 	if err != nil {
 		fmt.Println("\terror opening file:", err)
 	} else {
-		loadAvg, err := ioutil.ReadAll(loadavgReader)
+		loadAvg, err := io.ReadAll(loadavgReader)
 		if err != nil {
 			fmt.Println("\terror reading file:", err)
 		} else {
