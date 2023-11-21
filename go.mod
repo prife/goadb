@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.3.2
 	github.com/cheggaaa/pb v1.0.29
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/sys v0.10.0
+	golang.org/x/sys v0.14.0
 )
 
 require (

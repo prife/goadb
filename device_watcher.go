@@ -208,24 +208,22 @@ func parseDeviceStates(msg string) (states map[string]DeviceState, err error) {
 }
 
 func calculateStateDiffs(oldStates, newStates map[string]DeviceState) (events []DeviceStateChangedEvent) {
-	for serial, oldState := range oldStates {
-		newState, ok := newStates[serial]
-
-		if oldState != newState {
-			if ok {
-				// Device present in both lists: state changed.
+	for serial, newState := range newStates {
+		if oldState, ok := oldStates[serial]; ok {
+			// Device present in both lists: state changed.
+			if oldState != newState {
 				events = append(events, DeviceStateChangedEvent{serial, oldState, newState})
-			} else {
-				// Device only present in old list: device removed.
-				events = append(events, DeviceStateChangedEvent{serial, oldState, StateDisconnected})
 			}
+		} else {
+			// Device only present in new list: device added.
+			events = append(events, DeviceStateChangedEvent{serial, StateDisconnected, newState})
 		}
 	}
 
-	for serial, newState := range newStates {
-		if _, ok := oldStates[serial]; !ok {
-			// Device only present in new list: device added.
-			events = append(events, DeviceStateChangedEvent{serial, StateDisconnected, newState})
+	for serial, oldState := range oldStates {
+		if _, ok := newStates[serial]; !ok {
+			// Device only present in old list: device removed.
+			events = append(events, DeviceStateChangedEvent{serial, oldState, StateDisconnected})
 		}
 	}
 
