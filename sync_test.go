@@ -16,7 +16,7 @@ func GetDevice(client *adb.Adb, serial string) (d adb.DeviceInfo, err error) {
 	}
 
 	for _, info := range infos {
-		if info.State == adb.StateOnline.String() {
+		if info.State == "device" {
 			d = *info
 			return
 		}
@@ -27,20 +27,24 @@ func GetDevice(client *adb.Adb, serial string) (d adb.DeviceInfo, err error) {
 }
 
 func TestFileService_PushFile(t *testing.T) {
-	client, err := adb.NewWithConfig(adb.ServerConfig{})
+	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	device, err := GetDevice(client, "")
+	deviceInfo, err := GetDevice(adbclient, "")
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("%+v", deviceInfo)
+	d := adbclient.Device(adb.DeviceWithSerial(deviceInfo.Serial))
 
-	t.Logf("%+v", device)
-	svr := adb.NewFileService(client, device.Serial)
+	svr, err := d.NewFileService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svr.Close()
 
-	err = svr.PushFile("/Users/wetest/Downloads/Keka-1.2.57.dmg", "/sdcard/Keka-1.2.57.dmg",
+	err = svr.PushFile("/Users/wetest/Downloads/Docker.dmg", "/sdcard/Docker.dmg",
 		func(total, sent int64, duration time.Duration, status string) {
 			percent := float64(sent) / float64(total) * 100
 			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
