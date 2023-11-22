@@ -10,14 +10,15 @@ import (
 )
 
 type FileService struct {
-	client *adb.Adb
-	device adb.DeviceDescriptor
+	device *adb.Device
+	adb    *adb.Adb
+	// device adb.DeviceDescriptor
 }
 
 func NewFileService(client *adb.Adb, serial string) (f *FileService) {
 	return &FileService{
-		client: client,
-		device: adb.DeviceWithSerial(serial),
+		device: client.Device(adb.DeviceWithSerial(serial)),
+		adb:    client,
 	}
 }
 
@@ -38,8 +39,7 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(total,
 	defer localFile.Close()
 
 	// open remote writer
-	client := s.client.Device(s.device)
-	writer, err := client.OpenWrite(remotePath, perms, mtime)
+	writer, err := s.device.OpenWrite(remotePath, perms, mtime)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
 		return
