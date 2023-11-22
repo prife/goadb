@@ -11,7 +11,11 @@ import (
 
 var zeroTime = time.Unix(0, 0).UTC()
 
-func stat(conn *wire.SyncConn, path string) (*DirEntry, error) {
+type FileService struct {
+	*wire.SyncConn
+}
+
+func (conn *FileService) stat(path string) (*DirEntry, error) {
 	if err := conn.SendOctetString("STAT"); err != nil {
 		return nil, err
 	}
@@ -30,7 +34,7 @@ func stat(conn *wire.SyncConn, path string) (*DirEntry, error) {
 	return readStat(conn)
 }
 
-func listDirEntries(conn *wire.SyncConn, path string) (entries *DirEntries, err error) {
+func (conn *FileService) listDirEntries(path string) (entries *DirEntries, err error) {
 	if err = conn.SendOctetString("LIST"); err != nil {
 		return
 	}
@@ -41,7 +45,7 @@ func listDirEntries(conn *wire.SyncConn, path string) (entries *DirEntries, err 
 	return &DirEntries{scanner: conn}, nil
 }
 
-func receiveFile(conn *wire.SyncConn, path string) (io.ReadCloser, error) {
+func (conn *FileService) receiveFile(path string) (io.ReadCloser, error) {
 	if err := conn.SendOctetString("RECV"); err != nil {
 		return nil, err
 	}
@@ -55,7 +59,7 @@ func receiveFile(conn *wire.SyncConn, path string) (io.ReadCloser, error) {
 // The file will be created with permissions specified by mode.
 // The file's modified time will be set to mtime, unless mtime is 0, in which case the time the writer is
 // closed will be used.
-func sendFile(conn *wire.SyncConn, path string, mode os.FileMode, mtime time.Time) (io.WriteCloser, error) {
+func (conn *FileService) sendFile(path string, mode os.FileMode, mtime time.Time) (io.WriteCloser, error) {
 	if err := conn.SendOctetString("SEND"); err != nil {
 		return nil, err
 	}
@@ -65,7 +69,7 @@ func sendFile(conn *wire.SyncConn, path string, mode os.FileMode, mtime time.Tim
 		return nil, err
 	}
 
-	return newSyncFileWriter(conn, mtime), nil
+	return newSyncFileWriter(conn.SyncConn, mtime), nil
 }
 
 func readStat(s wire.SyncScanner) (entry *DirEntry, err error) {
