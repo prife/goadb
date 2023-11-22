@@ -1,4 +1,4 @@
-package services_test
+package adb_test
 
 import (
 	"errors"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	adb "github.com/zach-klippenstein/goadb"
-	"github.com/zach-klippenstein/goadb/services"
 )
 
 func GetDevice(client *adb.Adb, serial string) (d adb.DeviceInfo, err error) {
@@ -39,7 +38,7 @@ func TestFileService_PushFile(t *testing.T) {
 	}
 
 	t.Logf("%+v", device)
-	svr := services.NewFileService(client, device.Serial)
+	svr := adb.NewFileService(client, device.Serial)
 
 	err = svr.PushFile("/Users/wetest/Downloads/Keka-1.2.57.dmg", "/sdcard/Keka-1.2.57.dmg",
 		func(total, sent int64, duration time.Duration, status string) {

@@ -1,23 +1,21 @@
-package services
+package adb
 
 import (
 	"fmt"
 	"io"
 	"os"
 	"time"
-
-	adb "github.com/zach-klippenstein/goadb"
 )
 
 type FileService struct {
-	device *adb.Device
-	adb    *adb.Adb
+	device *Device
+	adb    *Adb
 	// device adb.DeviceDescriptor
 }
 
-func NewFileService(client *adb.Adb, serial string) (f *FileService) {
+func NewFileService(client *Adb, serial string) (f *FileService) {
 	return &FileService{
-		device: client.Device(adb.DeviceWithSerial(serial)),
+		device: client.Device(DeviceWithSerial(serial)),
 		adb:    client,
 	}
 }
