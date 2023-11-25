@@ -26,25 +26,29 @@ func GetDevice(client *adb.Adb, serial string) (d adb.DeviceInfo, err error) {
 	return
 }
 
-func TestFileService_PushFile(t *testing.T) {
+func newFs() (svr *adb.FileService, err error) {
 	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
 	if err != nil {
-		t.Fatal(err)
+		return
 	}
 	deviceInfo, err := GetDevice(adbclient, "")
 	if err != nil {
-		t.Fatal(err)
+		return
 	}
-	t.Logf("%+v", deviceInfo)
+	fmt.Printf("%+v\n", deviceInfo)
 	d := adbclient.Device(adb.DeviceWithSerial(deviceInfo.Serial))
 
-	svr, err := d.NewFileService()
+	svr, err = d.NewFileService()
+	return
+}
+func TestFileService_PushFile(t *testing.T) {
+	fs, err := newFs()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer svr.Close()
+	defer fs.Close()
 
-	err = svr.PushFile("/Users/wetest/Downloads/Docker.dmg", "/sdcard/Docker.dmg",
+	err = fs.PushFile("/Users/wetest/Downloads/Docker.dmg", "/sdcard/Docker.dmg",
 		func(total, sent int64, duration time.Duration, status string) {
 			percent := float64(sent) / float64(total) * 100
 			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
