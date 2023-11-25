@@ -17,7 +17,7 @@ type syncFileWriter struct {
 	mtime time.Time
 
 	// Reader used to read data from the adb connection.
-	sender wire.SyncSender
+	sender  wire.SyncSender
 	scanner wire.SyncScanner
 }
 
@@ -25,8 +25,8 @@ var _ io.WriteCloser = &syncFileWriter{}
 
 func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) io.WriteCloser {
 	return &syncFileWriter{
-		mtime:  mtime,
-		sender: s.SyncSender,
+		mtime:   mtime,
+		sender:  s.SyncSender,
 		scanner: s.SyncScanner,
 	}
 }
@@ -35,6 +35,7 @@ func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) io.WriteCloser {
 encodePathAndMode encodes a path and file mode as required for starting a send file stream.
 
 From https://android.googlesource.com/platform/system/core/+/master/adb/SYNC.TXT:
+
 	The remote file name is split into two parts separated by the last
 	comma (","). The first part is the actual path, while the second is a decimal
 	encoded file mode containing the permissions of the file on device.
@@ -85,8 +86,7 @@ func (w *syncFileWriter) Close() error {
 	}
 
 	if status, err := w.scanner.ReadStatus(""); err != nil || status != wire.StatusSuccess {
-		return errors.WrapErrf(w.scanner.Close(), "error reading status, should receive 'ID_OKAY'")
+		return errors.WrapErrf(err, "error reading status, should receive 'ID_OKAY'")
 	}
-
-	return errors.WrapErrf(w.sender.Close(), "error closing FileWriter")
+	return nil
 }

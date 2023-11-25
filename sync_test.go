@@ -58,3 +58,17 @@ func TestFileService_PushFile(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFileService_PushDir(t *testing.T) {
+	fs, err := newFs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	err = fs.PushDir("doc", "/sdcard/test/",
+		func(total, sent int64, duration time.Duration, status string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

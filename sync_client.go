@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zach-klippenstein/goadb/internal/errors"
@@ -11,6 +12,24 @@ import (
 )
 
 var zeroTime = time.Unix(0, 0).UTC()
+
+const (
+	ID_LSTAT_V1 = "STAT"
+	ID_STAT_V2  = "STA2"
+	ID_LSTAT_V2 = "LST2"
+
+	ID_LIST_V1 = "LIST"
+	ID_LIST_V2 = "LIS2"
+	ID_DENT_V1 = "DENT"
+	ID_DENT_V2 = "DNT2"
+
+	ID_SEND = "SEND"
+	ID_RECV = "RECV"
+	ID_DONE = "DONE"
+	ID_OKAY = "OKAY"
+	ID_FAIL = "FAIL"
+	ID_QUIT = "QUIT"
+)
 
 type FileService struct {
 	*wire.SyncConn
@@ -126,6 +145,54 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(total,
 			return err
 		}
 	}
+	return
+}
+
+func (s *FileService) PushDir(localDir, remotePath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
+	info, err := os.Lstat(localDir)
+	if err != nil {
+		return err
+	}
+
+	err = filepath.Walk(localDir,
+		func(path string, info os.FileInfo, err error) error {
+			if path == localDir {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+
+			if info.IsDir() {
+				panic("not support dir")
+			}
+
+			fmt.Println(path, info.Name())
+
+			localFile, err := os.Open(path)
+			if err != nil {
+				panic(err)
+			}
+			defer localFile.Close()
+
+			target := remotePath + "/" + info.Name()
+			writer, err := s.sendFile(target, info.Mode().Perm(), info.ModTime())
+			if err != nil {
+				panic(err)
+			}
+			n, err := io.Copy(writer, localFile)
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Println("--> write to :", info.Name(), " n:", n)
+			writer.Close()
+			return nil
+		})
+	if err != nil {
+		return err
+	}
+	_ = info
 	return
 }
 
