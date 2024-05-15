@@ -1,9 +1,10 @@
 package adb
 
 import (
+	"fmt"
 	"io"
+	"strings"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 )
 
@@ -84,8 +85,8 @@ func (r *syncFileReader) Close() error {
 func readNextChunk(r wire.SyncScanner) (io.Reader, error) {
 	status, err := r.ReadStatus("read-chunk")
 	if err != nil {
-		if wire.IsAdbServerErrorMatching(err, readFileNotFoundPredicate) {
-			return nil, errors.Errorf(errors.FileNoExistError, "no such file or directory")
+		if strings.Contains(err.Error(), "No such file or directory") {
+			err = fmt.Errorf("%w: no such file or directory", wire.ErrFileNoExist)
 		}
 		return nil, err
 	}
@@ -96,13 +97,7 @@ func readNextChunk(r wire.SyncScanner) (io.Reader, error) {
 	case wire.StatusSyncDone:
 		return nil, io.EOF
 	default:
-		return nil, errors.Errorf(errors.AssertionError, "expected chunk id '%s' or '%s', but got '%s'",
-			wire.StatusSyncData, wire.StatusSyncDone, []byte(status))
+		return nil, fmt.Errorf("%w: expected chunk id '%s' or '%s', but got '%s'",
+			wire.ErrAssertion, wire.StatusSyncData, wire.StatusSyncDone, []byte(status))
 	}
-}
-
-// readFileNotFoundPredicate returns true if s is the adb server error message returned
-// when trying to open a file that doesn't exist.
-func readFileNotFoundPredicate(s string) bool {
-	return s == "No such file or directory"
 }

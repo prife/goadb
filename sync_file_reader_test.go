@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -87,7 +88,7 @@ func TestReadError(t *testing.T) {
 	s := wire.NewSyncScanner(strings.NewReader(
 		"FAIL\004\000\000\000fail"))
 	_, err := newSyncFileReader(s)
-	assert.EqualError(t, err, "AdbError: server error for read-chunk request: fail ({Request:read-chunk ServerMsg:fail})")
+	assert.EqualError(t, err, "AdbError: request read-chunk, server error: fail")
 }
 
 func TestReadEmpty(t *testing.T) {
@@ -108,6 +109,6 @@ func TestReadErrorNotFound(t *testing.T) {
 	s := wire.NewSyncScanner(strings.NewReader(
 		"FAIL\031\000\000\000No such file or directory"))
 	_, err := newSyncFileReader(s)
-	assert.True(t, HasErrCode(err, FileNoExistError))
-	assert.EqualError(t, err, "FileNoExistError: no such file or directory")
+	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
+	assert.EqualError(t, err, "FileNoExist: no such file or directory")
 }
