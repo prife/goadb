@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"time"
-
-	"github.com/prife/goadb/internal/errors"
 )
 
 type SyncSender interface {
@@ -34,7 +32,7 @@ func NewSyncSender(w io.Writer) SyncSender {
 
 func (s *realSyncSender) SendOctetString(str string) error {
 	if len(str) != 4 {
-		return errors.AssertionErrorf("octet string must be exactly 4 bytes: '%s'", str)
+		return fmt.Errorf("%w: octet string must be exactly 4 bytes: '%s'", ErrAssertion, str)
 	}
 
 	if n, err := s.Writer.Write([]byte(str)); err != nil {
@@ -44,18 +42,24 @@ func (s *realSyncSender) SendOctetString(str string) error {
 }
 
 func (s *realSyncSender) SendInt32(val int32) error {
-	return errors.WrapErrorf(binary.Write(s.Writer, binary.LittleEndian, val),
-		errors.NetworkError, "error sending int on sync sender")
+	if err := binary.Write(s.Writer, binary.LittleEndian, val); err != nil {
+		return fmt.Errorf("error sending int on sync sender: %w", err)
+	}
+	return nil
 }
 
 func (s *realSyncSender) SendFileMode(mode os.FileMode) error {
-	return errors.WrapErrorf(binary.Write(s.Writer, binary.LittleEndian, mode),
-		errors.NetworkError, "error sending filemode on sync sender")
+	if err := binary.Write(s.Writer, binary.LittleEndian, mode); err != nil {
+		return fmt.Errorf("error sending filemode on sync sender: %w", err)
+	}
+	return nil
 }
 
 func (s *realSyncSender) SendTime(t time.Time) error {
-	return errors.WrapErrorf(s.SendInt32(int32(t.Unix())),
-		errors.NetworkError, "error sending time on sync sender")
+	if err := s.SendInt32(int32(t.Unix())); err != nil {
+		return fmt.Errorf("error sending time on sync sender: %w", err)
+	}
+	return nil
 }
 
 func (s *realSyncSender) SendBytes(data []byte) error {
@@ -63,11 +67,11 @@ func (s *realSyncSender) SendBytes(data []byte) error {
 	if length > SyncMaxChunkSize {
 		// This limit might not apply to filenames, but it's big enough
 		// that I don't think it will be a problem.
-		return errors.AssertionErrorf("data must be <= %d in length", SyncMaxChunkSize)
+		return fmt.Errorf("%w: data must be <= %d in length", ErrAssertion, SyncMaxChunkSize)
 	}
 
 	if err := s.SendInt32(int32(length)); err != nil {
-		return errors.WrapErrorf(err, errors.NetworkError, "error sending data length on sync sender")
+		return fmt.Errorf("error sending data length on sync sender: %w", err)
 	}
 	if n, err := s.Writer.Write(data); err != nil {
 		return fmt.Errorf("error send bytes: %w, sent %d", err, n)
@@ -77,7 +81,7 @@ func (s *realSyncSender) SendBytes(data []byte) error {
 
 func (s *realSyncSender) Close() error {
 	if closer, ok := s.Writer.(io.Closer); ok {
-		return errors.WrapErrorf(closer.Close(), errors.NetworkError, "error closing sync sender")
+		return closer.Close()
 	}
 	return nil
 }
