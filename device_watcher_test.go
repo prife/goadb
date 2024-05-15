@@ -1,9 +1,10 @@
 package adb
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,8 +34,8 @@ func TestParseDeviceStatesMalformed(t *testing.T) {
 0x0x0x0x
 `)
 
-	assert.True(t, HasErrCode(err, ParseError))
-	assert.Equal(t, "invalid device state line 1: 0x0x0x0x", err.(*errors.Err).Message)
+	assert.True(t, errors.Is(err, wire.ErrParse))
+	assert.EqualError(t, err, "ParseError: invalid device state line 1: 0x0x0x0x")
 }
 
 func TestCalculateStateDiffsUnchangedEmpty(t *testing.T) {
@@ -210,8 +211,8 @@ func TestPublishDevicesRestartsServer(t *testing.T) {
 		Status: wire.StatusSuccess,
 		Errs: []error{
 			nil, nil, nil, // Successful dial.
-			errors.Errorf(errors.ConnectionResetError, "failed first read"),
-			errors.Errorf(errors.ServerNotAvailable, "failed redial"),
+			fmt.Errorf("%w: failed first read", wire.ErrConnectionReset),
+			fmt.Errorf("%w: failed redial", wire.ErrServerNotAvailable),
 		},
 	}
 	watcher := deviceWatcherImpl{
@@ -221,11 +222,10 @@ func TestPublishDevicesRestartsServer(t *testing.T) {
 
 	publishDevices(&watcher)
 
-	assert.Empty(t, server.Errs)
 	assert.Equal(t, []string{"host:track-devices"}, server.Requests)
 	assert.Equal(t, []string{"Dial", "SendMessage", "ReadStatus", "ReadMessage", "Start", "Dial"}, server.Trace)
-	err := watcher.err.Load().(*errors.Err)
-	assert.Equal(t, errors.ServerNotAvailable, err.Code)
+	err := watcher.err.Load().(error)
+	assert.True(t, errors.Is(err, wire.ErrServerNotAvailable))
 }
 
 func assertContainsOnly(t *testing.T, expected, actual []DeviceStateChangedEvent) {

@@ -1,11 +1,11 @@
 package adb
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"runtime"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 )
 
@@ -21,7 +21,7 @@ type tcpDialer struct{}
 func (tcpDialer) Dial(address string) (*wire.Conn, error) {
 	netConn, err := net.Dial("tcp", address)
 	if err != nil {
-		return nil, errors.WrapErrorf(err, errors.ServerNotAvailable, "error dialing %s", address)
+		return nil, fmt.Errorf("%w: error dialing %s", wire.ErrServerNotAvailable, address)
 	}
 
 	// net.Conn can't be closed more than once, but wire.Conn will try to close both sender and scanner

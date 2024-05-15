@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -9,14 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 )
 
-/*
-DeviceWatcher publishes device status change events.
-If the server dies while listening for events, it restarts the server.
-*/
+// DeviceWatcher publishes device status change events.
+// If the server dies while listening for events, it restarts the server.
 type DeviceWatcher struct {
 	*deviceWatcherImpl
 }
@@ -64,10 +62,8 @@ func newDeviceWatcher(server server) *DeviceWatcher {
 	return watcher
 }
 
-/*
-C returns a channel than can be received on to get events.
-If an unrecoverable error occurs, or Shutdown is called, the channel will be closed.
-*/
+// C returns a channel than can be received on to get events.
+// If an unrecoverable error occurs, or Shutdown is called, the channel will be closed.
 func (w *DeviceWatcher) C() <-chan DeviceStateChangedEvent {
 	return w.eventChan
 }
@@ -91,20 +87,18 @@ func (w *deviceWatcherImpl) reportErr(err error) {
 	w.err.Store(err)
 }
 
-/*
-publishDevices reads device lists from scanner, calculates diffs, and publishes events on
-eventChan.
-Returns when scanner returns an error.
-Doesn't refer directly to a *DeviceWatcher so it can be GCed (which will,
-in turn, close Scanner and stop this goroutine).
-
-TODO: to support shutdown, spawn a new goroutine each time a server connection is established.
-This goroutine should read messages and send them to a message channel. Can write errors directly
-to errVal. publishDevicesUntilError should take the msg chan and the scanner and select on the msg chan and stop chan, and if the stop
-chan sends, close the scanner and return true. If the msg chan closes, just return false.
-publishDevices can look at ret val: if false and err == EOF, reconnect. If false and other error, report err
-and abort. If true, report no error and stop.
-*/
+// publishDevices reads device lists from scanner, calculates diffs, and publishes events on
+// eventChan.
+// Returns when scanner returns an error.
+// Doesn't refer directly to a *DeviceWatcher so it can be GCed (which will,
+// in turn, close Scanner and stop this goroutine).
+//
+// TODO: to support shutdown, spawn a new goroutine each time a server connection is established.
+// This goroutine should read messages and send them to a message channel. Can write errors directly
+// to errVal. publishDevicesUntilError should take the msg chan and the scanner and select on the msg chan and stop chan, and if the stop
+// chan sends, close the scanner and return true. If the msg chan closes, just return false.
+// publishDevices can look at ret val: if false and err == EOF, reconnect. If false and other error, report err
+// and abort. If true, report no error and stop.
 func publishDevices(watcher *deviceWatcherImpl) {
 	defer close(watcher.eventChan)
 
@@ -125,7 +119,7 @@ func publishDevices(watcher *deviceWatcherImpl) {
 			return
 		}
 
-		if HasErrCode(err, ConnectionResetError) {
+		if errors.Is(err, wire.ErrConnectionReset) {
 			// The server died, restart and reconnect.
 			if realServer, ok := watcher.server.(*realServer); ok {
 				if !realServer.config.AutoStart {
@@ -207,7 +201,7 @@ func parseDeviceStates(msg string) (states map[string]DeviceState, err error) {
 
 		fields := strings.Split(line, "\t")
 		if len(fields) != 2 {
-			err = errors.Errorf(errors.ParseError, "invalid device state line %d: %s", lineNum, line)
+			err = fmt.Errorf("%w: invalid device state line %d: %s", wire.ErrParse, lineNum, line)
 			return
 		}
 

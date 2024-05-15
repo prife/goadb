@@ -1,6 +1,10 @@
 package adb
 
-import "github.com/prife/goadb/internal/errors"
+import (
+	"fmt"
+
+	"github.com/prife/goadb/wire"
+)
 
 // DeviceState represents one of the 3 possible states adb will report devices.
 // A device can be communicated with when it's in StateOnline.
@@ -33,7 +37,7 @@ var deviceStateStrings = map[string]DeviceState{
 func parseDeviceState(str string) (DeviceState, error) {
 	state, ok := deviceStateStrings[str]
 	if !ok {
-		return StateInvalid, errors.Errorf(errors.ParseError, "invalid device state: %s", str)
+		return StateInvalid, fmt.Errorf("%w: invalid device state: %s", wire.ErrParse, str)
 	}
 	return state, nil
 }
