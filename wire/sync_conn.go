@@ -1,6 +1,6 @@
 package wire
 
-import "github.com/zach-klippenstein/goadb/internal/errors"
+import "github.com/prife/goadb/internal/errors"
 
 const (
 	// Chunks cannot be longer than 64k.
@@ -17,7 +17,7 @@ https://android.googlesource.com/platform/system/core/+/master/adb/SYNC.TXT.
 Unlike the normal adb protocol (implemented in Conn), the sync protocol is binary.
 Lengths are binary-encoded (little-endian) instead of hex.
 
-Notes on Encoding
+# Notes on Encoding
 
 Length headers and other integers are encoded in little-endian, with 32 bits.
 

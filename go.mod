@@ -1,4 +1,4 @@
-module github.com/zach-klippenstein/goadb
+module github.com/prife/goadb
 
 go 1.18
 

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
+	"github.com/prife/goadb/internal/errors"
 )
 
 // ErrorResponseDetails is an error message returned by the server for a particular request.

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	adb "github.com/zach-klippenstein/goadb"
+	adb "github.com/prife/goadb"
 )
 
 func GetDevice(client *adb.Adb, serial string) (d adb.DeviceInfo, err error) {

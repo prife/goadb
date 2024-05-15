@@ -8,8 +8,8 @@ import (
 	"encoding/binary"
 	"strings"
 
+	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
-	"github.com/zach-klippenstein/goadb/wire"
 )
 
 func TestFileWriterWriteSingleChunk(t *testing.T) {

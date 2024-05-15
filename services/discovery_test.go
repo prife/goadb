@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/prife/goadb/services"
 	"github.com/prife/gomlib"
 	log "github.com/sirupsen/logrus"
-	"github.com/zach-klippenstein/goadb/services"
 )
 
 func TestMonitor(t *testing.T) {

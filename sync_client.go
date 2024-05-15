@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
-	"github.com/zach-klippenstein/goadb/wire"
+	"github.com/prife/goadb/internal/errors"
+	"github.com/prife/goadb/wire"
 )
 
 var zeroTime = time.Unix(0, 0).UTC()

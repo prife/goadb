@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
+	"github.com/prife/goadb/internal/errors"
 )
 
 type DeviceInfo struct {

@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 
+	adb "github.com/prife/goadb"
 	"github.com/prife/gomlib"
 	log "github.com/sirupsen/logrus"
-	adb "github.com/zach-klippenstein/goadb"
 )
 
 func InitAdb() (cli *adb.Adb, err error) {

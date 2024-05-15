@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/prife/goadb/internal/errors"
 	"github.com/stretchr/testify/assert"
-	"github.com/zach-klippenstein/goadb/internal/errors"
 )
 
 func TestReadStatusOkay(t *testing.T) {
