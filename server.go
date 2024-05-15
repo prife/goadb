@@ -74,7 +74,7 @@ func newServer(config ServerConfig) (server, error) {
 	if config.PathToAdb == "" {
 		path, err := config.fs.LookPath(AdbExecutableName)
 		if err != nil {
-			return nil, fmt.Errorf("%w: could not find %s in PATH, err: %w", wire.ErrServerNotAvailable, AdbExecutableName, err)
+			return nil, fmt.Errorf("%w: could not find %s in PATH", wire.ErrServerNotAvailable, AdbExecutableName)
 		}
 		config.PathToAdb = path
 	}

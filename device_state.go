@@ -37,7 +37,7 @@ var deviceStateStrings = map[string]DeviceState{
 func parseDeviceState(str string) (DeviceState, error) {
 	state, ok := deviceStateStrings[str]
 	if !ok {
-		return StateInvalid, fmt.Errorf("%w: invalid device state: %s", wire.ErrParse, str)
+		return StateInvalid, fmt.Errorf("%w: invalid device state: '%s'", wire.ErrParse, str)
 	}
 	return state, nil
 }
