@@ -3,10 +3,10 @@ package wire
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,32 +21,29 @@ func TestReadStatusOkay(t *testing.T) {
 func TestReadIncompleteStatus(t *testing.T) {
 	s := newEofReader("oka")
 	_, err := readStatusFailureAsError(s, "", readHexLength)
-	assert.EqualError(t, err, "NetworkError: error reading status for ")
-	assert.Equal(t, errIncompleteMessage("", 3, 4), err.(*errors.Err).Cause)
+	assert.Contains(t, err.Error(), "error reading status for ")
+	assert.Equal(t, errors.Unwrap(err), errIncompleteMessage("", 3, 4))
 	assertEof(t, s)
 }
 
 func TestReadFailureIncompleteStatus(t *testing.T) {
 	s := newEofReader("FAIL")
 	_, err := readStatusFailureAsError(s, "req", readHexLength)
-	assert.EqualError(t, err, "NetworkError: server returned error for req, but couldn't read the error message")
-	assert.Error(t, err.(*errors.Err).Cause)
+	assert.Contains(t, err.Error(), "server returned error for req, but couldn't read the error message")
 	assertEof(t, s)
 }
 
 func TestReadFailureEmptyStatus(t *testing.T) {
 	s := newEofReader("FAIL0000")
 	_, err := readStatusFailureAsError(s, "", readHexLength)
-	assert.EqualError(t, err, "AdbError: server error:  ({Request: ServerMsg:})")
-	assert.NoError(t, err.(*errors.Err).Cause)
+	assert.EqualError(t, err, "AdbError: request , server error: ")
 	assertEof(t, s)
 }
 
 func TestReadFailureStatus(t *testing.T) {
 	s := newEofReader("FAIL0004fail")
 	_, err := readStatusFailureAsError(s, "", readHexLength)
-	assert.EqualError(t, err, "AdbError: server error: fail ({Request: ServerMsg:fail})")
-	assert.NoError(t, err.(*errors.Err).Cause)
+	assert.EqualError(t, err, "AdbError: request , server error: fail")
 	assertEof(t, s)
 }
 
@@ -111,7 +108,7 @@ func TestReadLengthIncompleteLength(t *testing.T) {
 
 func assertEof(t *testing.T, r io.Reader) {
 	msg, err := readMessage(r, readHexLength)
-	assert.True(t, errors.HasErrCode(err, errors.ConnectionResetError))
+	assert.True(t, errors.Is(err, ErrConnectionReset))
 	assert.Nil(t, msg)
 }
 

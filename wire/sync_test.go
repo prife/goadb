@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,7 +28,7 @@ func TestSyncSendOctetStringTooLong(t *testing.T) {
 	var buf bytes.Buffer
 	s := NewSyncSender(&buf)
 	err := s.SendOctetString("hello")
-	assert.Equal(t, errors.AssertionErrorf("octet string must be exactly 4 bytes: 'hello'"), err)
+	assert.EqualError(t, err, "AssertionError: octet string must be exactly 4 bytes: 'hello'")
 }
 
 func TestSyncReadTime(t *testing.T) {

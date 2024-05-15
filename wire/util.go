@@ -1,12 +1,11 @@
 package wire
 
 import (
+	// "errors"
 	"fmt"
 	"io"
 	"regexp"
 	"sync"
-
-	"github.com/prife/goadb/internal/errors"
 )
 
 // ErrorResponseDetails is an error message returned by the server for a particular request.
@@ -29,27 +28,8 @@ func adbServerError(request string, serverMsg string) error {
 	return fmt.Errorf("%w: request %s, server error: %s", ErrAdb, request, serverMsg)
 }
 
-// IsAdbServerErrorMatching returns true if err is an *Err with code AdbError and for which
-// predicate returns true when passed Details.ServerMsg.
-func IsAdbServerErrorMatching(err error, predicate func(string) bool) bool {
-	if err, ok := err.(*errors.Err); ok && err.Code == errors.AdbError {
-		return predicate(err.Details.(ErrorResponseDetails).ServerMsg)
-	}
-	return false
-}
-
 func errIncompleteMessage(description string, actual int, expected int) error {
-	return &errors.Err{
-		Code:    errors.ConnectionResetError,
-		Message: fmt.Sprintf("incomplete %s: read %d bytes, expecting %d", description, actual, expected),
-		Details: struct {
-			ActualReadBytes int
-			ExpectedBytes   int
-		}{
-			ActualReadBytes: actual,
-			ExpectedBytes:   expected,
-		},
-	}
+	return fmt.Errorf("%w: incomplete %s: read %d bytes, expecting %d", ErrConnectionReset, description, actual, expected)
 }
 
 // MultiCloseable wraps c in a ReadWriteCloser that can be safely closed multiple times.
