@@ -9,7 +9,6 @@ import (
 	"time"
 
 	adb "github.com/prife/goadb"
-	"github.com/prife/goadb/internal/errors"
 )
 
 var (
@@ -65,24 +64,11 @@ func main() {
 		fmt.Printf("\t[%s]%+v\n", time.Now(), event)
 	}
 	if watcher.Err() != nil {
-		printErr(watcher.Err())
+		fmt.Println(watcher.Err())
 	}
 
 	//fmt.Println("Killing server…")
 	//client.KillServer()
-}
-
-func printErr(err error) {
-	switch err := err.(type) {
-	case *errors.Err:
-		fmt.Println(err.Error())
-		if err.Cause != nil {
-			fmt.Print("caused by ")
-			printErr(err.Cause)
-		}
-	default:
-		fmt.Println("error:", err)
-	}
 }
 
 func PrintDeviceInfoAndError(descriptor adb.DeviceDescriptor) {
