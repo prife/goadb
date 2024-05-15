@@ -68,20 +68,6 @@ func errIncompleteMessage(description string, actual int, expected int) error {
 	}
 }
 
-// writeFully writes all of data to w.
-// Inverse of io.ReadFully().
-func writeFully(w io.Writer, data []byte) error {
-	offset := 0
-	for offset < len(data) {
-		n, err := w.Write(data[offset:])
-		if err != nil {
-			return errors.WrapErrorf(err, errors.NetworkError, "error writing %d bytes at offset %d", len(data), offset)
-		}
-		offset += n
-	}
-	return nil
-}
-
 // MultiCloseable wraps c in a ReadWriteCloser that can be safely closed multiple times.
 func MultiCloseable(c io.ReadWriteCloser) io.ReadWriteCloser {
 	return &multiCloseable{ReadWriteCloser: c}

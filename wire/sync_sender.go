@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -36,10 +37,10 @@ func (s *realSyncSender) SendOctetString(str string) error {
 		return errors.AssertionErrorf("octet string must be exactly 4 bytes: '%s'", str)
 	}
 
-	wrappedErr := errors.WrapErrorf(writeFully(s.Writer, []byte(str)),
-		errors.NetworkError, "error sending octet string on sync sender")
-
-	return wrappedErr
+	if n, err := s.Writer.Write([]byte(str)); err != nil {
+		return fmt.Errorf("error send string: %w, sent %d", err, n)
+	}
+	return nil
 }
 
 func (s *realSyncSender) SendInt32(val int32) error {
@@ -68,7 +69,10 @@ func (s *realSyncSender) SendBytes(data []byte) error {
 	if err := s.SendInt32(int32(length)); err != nil {
 		return errors.WrapErrorf(err, errors.NetworkError, "error sending data length on sync sender")
 	}
-	return writeFully(s.Writer, data)
+	if n, err := s.Writer.Write(data); err != nil {
+		return fmt.Errorf("error send bytes: %w, sent %d", err, n)
+	}
+	return nil
 }
 
 func (s *realSyncSender) Close() error {
