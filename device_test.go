@@ -1,9 +1,9 @@
 package adb
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
 )
@@ -47,8 +47,8 @@ func TestGetDeviceInfo(t *testing.T) {
 
 	client = newDeviceClientWithDeviceLister("serial", deviceLister)
 	device, err = client.DeviceInfo()
-	assert.True(t, HasErrCode(err, DeviceNotFound))
-	assert.EqualError(t, err.(*errors.Err).Cause,
+	assert.True(t, errors.Is(err, wire.ErrDeviceNotFound))
+	assert.EqualError(t, errors.Unwrap(err),
 		"DeviceNotFound: device list doesn't contain serial serial")
 	assert.Nil(t, device)
 }
@@ -84,14 +84,14 @@ func TestPrepareCommandLineNoArgs(t *testing.T) {
 
 func TestPrepareCommandLineEmptyCommand(t *testing.T) {
 	_, err := prepareCommandLine("")
-	assert.Equal(t, errors.AssertionError, code(err))
-	assert.Equal(t, "command cannot be empty", message(err))
+	assert.True(t, errors.Is(err, wire.ErrAssertion))
+	assert.Contains(t, err.Error(), "command cannot be empty")
 }
 
 func TestPrepareCommandLineBlankCommand(t *testing.T) {
 	_, err := prepareCommandLine("  ")
-	assert.Equal(t, errors.AssertionError, code(err))
-	assert.Equal(t, "command cannot be empty", message(err))
+	assert.True(t, errors.Is(err, wire.ErrAssertion))
+	assert.Contains(t, err.Error(), "command cannot be empty")
 }
 
 func TestPrepareCommandLineCleanArgs(t *testing.T) {
@@ -108,14 +108,6 @@ func TestPrepareCommandLineArgWithWhitespaceQuotes(t *testing.T) {
 
 func TestPrepareCommandLineArgWithDoubleQuoteFails(t *testing.T) {
 	_, err := prepareCommandLine("cmd", "quoted\"arg")
-	assert.Equal(t, errors.ParseError, code(err))
-	assert.Equal(t, "arg at index 0 contains an invalid double quote: quoted\"arg", message(err))
-}
-
-func code(err error) errors.ErrCode {
-	return err.(*errors.Err).Code
-}
-
-func message(err error) string {
-	return err.(*errors.Err).Message
+	assert.True(t, errors.Is(err, wire.ErrParse))
+	assert.Contains(t, err.Error(), "arg at index 0 contains an invalid double quote: quoted\"arg")
 }
