@@ -1,6 +1,8 @@
 package wire
 
-import "github.com/prife/goadb/internal/errors"
+import (
+	"fmt"
+)
 
 const (
 	// The official implementation of adb imposes an undocumented 255-byte limit
@@ -8,28 +10,24 @@ const (
 	MaxMessageLength = 255
 )
 
-/*
-Conn is a normal connection to an adb server.
-
-For most cases, usage looks something like:
-
-	conn := wire.Dial()
-	conn.SendMessage(data)
-	conn.ReadStatus() == StatusSuccess || StatusFailure
-	conn.ReadMessage()
-	conn.Close()
-
-For some messages, the server will return more than one message (but still a single
-status). Generally, after calling ReadStatus once, you should call ReadMessage until
-it returns an io.EOF error. Note: the protocol docs seem to suggest that connections will be
-kept open for multiple commands, but this is not the case. The official client closes
-a connection immediately after its read the response, in most cases. The docs might be
-referring to the connection between the adb server and the device, but I haven't confirmed
-that.
-
-For most commands, the server will close the connection after sending the response.
-You should still always call Close() when you're done with the connection.
-*/
+// Conn is a normal connection to an adb server.
+// For most cases, usage looks something like:
+//
+//	conn := wire.Dial()
+//	conn.SendMessage(data)
+//	conn.ReadStatus() == StatusSuccess || StatusFailure
+//	conn.ReadMessage()
+//	conn.Close()
+//
+// For some messages, the server will return more than one message (but still a single
+// status). Generally, after calling ReadStatus once, you should call ReadMessage until
+// it returns an io.EOF error. Note: the protocol docs seem to suggest that connections will be
+// kept open for multiple commands, but this is not the case. The official client closes
+// a connection immediately after its read the response, in most cases. The docs might be
+// referring to the connection between the adb server and the device, but I haven't confirmed
+// that.
+// For most commands, the server will close the connection after sending the response.
+// You should still always call Close() when you're done with the connection.
 type Conn struct {
 	Scanner
 	Sender
@@ -64,20 +62,10 @@ func (conn *Conn) RoundTripSingleResponse(req []byte) (resp []byte, err error) {
 }
 
 func (conn *Conn) Close() error {
-	errs := struct {
-		SenderErr  error
-		ScannerErr error
-	}{
-		SenderErr:  conn.Sender.Close(),
-		ScannerErr: conn.Scanner.Close(),
-	}
-
-	if errs.ScannerErr != nil || errs.SenderErr != nil {
-		return &errors.Err{
-			Code:    errors.NetworkError,
-			Message: "error closing connection",
-			Details: errs,
-		}
+	senderErr := conn.Sender.Close()
+	scannerErr := conn.Scanner.Close()
+	if senderErr != nil || scannerErr != nil {
+		return fmt.Errorf("error closing connection: %w, %w", senderErr, scannerErr)
 	}
 	return nil
 }
