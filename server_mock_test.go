@@ -4,7 +4,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 )
 
@@ -57,7 +56,7 @@ func (s *MockServer) ReadMessage() ([]byte, error) {
 		return nil, err
 	}
 	if s.nextMsgIndex >= len(s.Messages) {
-		return nil, errors.WrapErrorf(io.EOF, errors.NetworkError, "")
+		return nil, io.EOF
 	}
 
 	s.nextMsgIndex++
