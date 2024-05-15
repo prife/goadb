@@ -23,26 +23,10 @@ type ErrorResponseDetails struct {
 var deviceNotFoundMessagePattern = regexp.MustCompile(`device( '.*')? not found`)
 
 func adbServerError(request string, serverMsg string) error {
-	var msg string
-	if request == "" {
-		msg = fmt.Sprintf("server error: %s", serverMsg)
-	} else {
-		msg = fmt.Sprintf("server error for %s request: %s", request, serverMsg)
-	}
-
-	errCode := errors.AdbError
 	if deviceNotFoundMessagePattern.MatchString(serverMsg) {
-		errCode = errors.DeviceNotFound
+		return fmt.Errorf("%w: request %s, server error: %s", ErrDeviceNotFound, request, serverMsg)
 	}
-
-	return &errors.Err{
-		Code:    errCode,
-		Message: msg,
-		Details: ErrorResponseDetails{
-			Request:   request,
-			ServerMsg: serverMsg,
-		},
-	}
+	return fmt.Errorf("%w: request %s, server error: %s", ErrAdb, request, serverMsg)
 }
 
 // IsAdbServerErrorMatching returns true if err is an *Err with code AdbError and for which

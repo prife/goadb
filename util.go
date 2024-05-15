@@ -2,11 +2,8 @@ package adb
 
 import (
 	"fmt"
-	"reflect"
 	"regexp"
 	"strings"
-
-	"github.com/prife/goadb/internal/errors"
 )
 
 var (
@@ -21,20 +18,10 @@ func isBlank(str string) bool {
 	return whitespaceRegex.MatchString(str)
 }
 
-func wrapClientError(err error, client interface{}, operation string, args ...interface{}) error {
+func wrapClientError(err error, client *Device, operation string, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := err.(*errors.Err); !ok {
-		panic("err is not a *Err: " + err.Error())
-	}
 
-	clientType := reflect.TypeOf(client)
-
-	return &errors.Err{
-		Code:    err.(*errors.Err).Code,
-		Cause:   err,
-		Message: fmt.Sprintf("error performing %s on %s", fmt.Sprintf(operation, args...), clientType),
-		Details: client,
-	}
+	return fmt.Errorf("%s on %s, err: %w", fmt.Sprintf(operation, args...), client.descriptor.serial, err)
 }
