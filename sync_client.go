@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 )
 
@@ -48,7 +47,7 @@ func (conn *FileService) stat(path string) (*DirEntry, error) {
 		return nil, err
 	}
 	if id != "STAT" {
-		return nil, errors.Errorf(errors.AssertionError, "expected stat ID 'STAT', but got '%s'", id)
+		return nil, fmt.Errorf("%w: expected stat ID 'STAT', but got '%s'", wire.ErrAssertion, id)
 	}
 
 	return readStat(conn)
@@ -199,24 +198,24 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(total, s
 func readStat(s wire.SyncScanner) (entry *DirEntry, err error) {
 	mode, err := s.ReadFileMode()
 	if err != nil {
-		err = errors.WrapErrf(err, "error reading file mode: %v", err)
+		err = fmt.Errorf("error reading file mode: %w", err)
 		return
 	}
 	size, err := s.ReadInt32()
 	if err != nil {
-		err = errors.WrapErrf(err, "error reading file size: %v", err)
+		err = fmt.Errorf("error reading file size: %w", err)
 		return
 	}
 	mtime, err := s.ReadTime()
 	if err != nil {
-		err = errors.WrapErrf(err, "error reading file time: %v", err)
+		err = fmt.Errorf("error reading file time: %w", err)
 		return
 	}
 
 	// adb doesn't indicate when a file doesn't exist, but will return all zeros.
 	// Theoretically this could be an actual file, but that's very unlikely.
 	if mode == os.FileMode(0) && size == 0 && mtime == zeroTime {
-		return nil, errors.Errorf(errors.FileNoExistError, "file doesn't exist")
+		return nil, fmt.Errorf("%w: file doesn't exist", wire.ErrFileNoExist)
 	}
 
 	entry = &DirEntry{

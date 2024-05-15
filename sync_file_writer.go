@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 )
 
@@ -79,14 +78,14 @@ func (w *syncFileWriter) Close() error {
 	}
 
 	if err := w.sender.SendOctetString(wire.StatusSyncDone); err != nil {
-		return errors.WrapErrf(err, "error sending done chunk to close stream")
+		return fmt.Errorf("error sending done chunk to close stream: %w", err)
 	}
 	if err := w.sender.SendTime(w.mtime); err != nil {
-		return errors.WrapErrf(err, "error writing file modification time")
+		return fmt.Errorf("error writing file modification time: %w", err)
 	}
 
 	if status, err := w.scanner.ReadStatus(""); err != nil || status != wire.StatusSuccess {
-		return errors.WrapErrf(err, "error reading status, should receive 'ID_OKAY'")
+		return fmt.Errorf("error reading status, should receive 'ID_OKAY': %w", err)
 	}
 	return nil
 }

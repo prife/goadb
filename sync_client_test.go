@@ -3,11 +3,11 @@ package adb
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/prife/goadb/internal/errors"
 	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,5 +60,5 @@ func TestStatNoExist(t *testing.T) {
 	fs := &FileService{SyncConn: conn}
 	entry, err := fs.stat("/")
 	assert.Nil(t, entry)
-	assert.Equal(t, errors.FileNoExistError, err.(*errors.Err).Code)
+	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
 }
