@@ -212,7 +212,7 @@ func (c *Device) getSyncConn() (*FileService, error) {
 	}
 
 	// Switch the connection to sync mode.
-	if err := wire.SendMessageString(conn, "sync:"); err != nil {
+	if err := conn.SendMessage([]byte("sync:")); err != nil {
 		return nil, err
 	}
 	if _, err := conn.ReadStatus("sync"); err != nil {
@@ -235,7 +235,7 @@ func (c *Device) dialDevice() (*wire.Conn, error) {
 	}
 
 	req := fmt.Sprintf("host:%s", c.descriptor.getTransportDescriptor())
-	if err = wire.SendMessageString(conn, req); err != nil {
+	if err = conn.SendMessage([]byte(req)); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("error connecting to device '%s': %w", c.descriptor, err)
 	}

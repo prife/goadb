@@ -36,8 +36,5 @@ func (tcpDialer) Dial(address string) (*wire.Conn, error) {
 		conn.Close()
 	})
 
-	return &wire.Conn{
-		Scanner: wire.NewScanner(safeConn),
-		Sender:  wire.NewSender(safeConn),
-	}, nil
+	return wire.NewConn(wire.NewScanner(safeConn), wire.NewSender(safeConn)), nil
 }

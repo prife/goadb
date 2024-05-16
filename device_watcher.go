@@ -159,7 +159,7 @@ func connectToTrackDevices(server server) (wire.Scanner, error) {
 		return nil, err
 	}
 
-	if err := wire.SendMessageString(conn, "host:track-devices"); err != nil {
+	if err := conn.SendMessage([]byte("host:track-devices")); err != nil {
 		conn.Close()
 		return nil, err
 	}

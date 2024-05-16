@@ -9,14 +9,14 @@ import (
 
 func TestWriteMessage(t *testing.T) {
 	s, b := NewTestSender()
-	err := SendMessageString(s, "hello")
+	err := s.SendMessage([]byte("hello"))
 	assert.NoError(t, err)
 	assert.Equal(t, "0005hello", b.String())
 }
 
 func TestWriteEmptyMessage(t *testing.T) {
 	s, b := NewTestSender()
-	err := SendMessageString(s, "")
+	err := s.SendMessage([]byte(""))
 	assert.NoError(t, err)
 	assert.Equal(t, "0000", b.String())
 }

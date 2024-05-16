@@ -22,10 +22,6 @@ func NewSender(w io.WriteCloser) Sender {
 	return &realSender{w}
 }
 
-func SendMessageString(s Sender, msg string) error {
-	return s.SendMessage([]byte(msg))
-}
-
 func (s *realSender) SendMessage(msg []byte) error {
 	if len(msg) > MaxMessageLength {
 		return fmt.Errorf("message length exceeds maximum:%d", len(msg))

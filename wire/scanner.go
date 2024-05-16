@@ -51,14 +51,6 @@ func NewScanner(r io.ReadCloser) Scanner {
 	return &realScanner{r}
 }
 
-func ReadMessageString(s Scanner) (string, error) {
-	msg, err := s.ReadMessage()
-	if err != nil {
-		return string(msg), err
-	}
-	return string(msg), nil
-}
-
 func (s *realScanner) ReadStatus(req string) (string, error) {
 	return readStatusFailureAsError(s.reader, req, readHexLength)
 }
