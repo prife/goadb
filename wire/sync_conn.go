@@ -6,7 +6,7 @@ import (
 
 const (
 	// Chunks cannot be longer than 64k.
-	SyncMaxChunkSize = 64 * 1024
+	SyncMaxChunkSize = 1024 * 1024
 )
 
 // SyncConn is a connection to the adb server in sync mode.
