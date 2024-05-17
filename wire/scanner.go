@@ -1,7 +1,6 @@
 package wire
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"strconv"
@@ -30,10 +29,8 @@ type StatusReader interface {
 	ReadStatus(req string) (string, error)
 }
 
-/*
-Scanner reads tokens from a server.
-See Conn for more details.
-*/
+// Scanner reads tokens from a server.
+// See Conn for more details.
 type Scanner interface {
 	io.Closer
 	StatusReader
@@ -45,18 +42,19 @@ type Scanner interface {
 
 type realScanner struct {
 	reader io.ReadCloser
+	rbuf   []byte
 }
 
 func NewScanner(r io.ReadCloser) Scanner {
-	return &realScanner{r}
+	return &realScanner{r, make([]byte, 4)}
 }
 
 func (s *realScanner) ReadStatus(req string) (string, error) {
-	return readStatusFailureAsError(s.reader, req, readHexLength)
+	return readStatusFailureAsError(s.reader, s.rbuf, req)
 }
 
 func (s *realScanner) ReadMessage() ([]byte, error) {
-	return readMessage(s.reader, readHexLength)
+	return readMessage(s.reader, s.rbuf)
 }
 
 func (s *realScanner) ReadUntilEof() ([]byte, error) {
@@ -65,6 +63,34 @@ func (s *realScanner) ReadUntilEof() ([]byte, error) {
 		return nil, fmt.Errorf("error reading until EOF: %w", err)
 	}
 	return data, nil
+}
+
+// Reads the status, and if failure, reads the message and returns it as an error.
+// If the status is success, doesn't read the message.
+// req is just used to populate the AdbError, and can be nil.
+func readStatusFailureAsError(r io.Reader, buf []byte, req string) (string, error) {
+	// read 4 bytes
+	if len(buf) < 4 {
+		buf = make([]byte, 4)
+	}
+	n, err := io.ReadFull(r, buf[:4])
+	if err == io.ErrUnexpectedEOF {
+		return "", fmt.Errorf("error reading status for %s: %w", req, errIncompleteMessage(req, n, 4))
+	} else if err != nil {
+		return "", fmt.Errorf("error reading status for %s: %w", req, err)
+	}
+
+	status := string(buf[:4])
+	if isFailureStatus(status) {
+		msg, err := readMessage(r, buf)
+		if err != nil {
+			return "", fmt.Errorf("server returned error for %s, but couldn't read the error message, %w", req, err)
+		}
+
+		return "", adbServerError(req, string(msg))
+	}
+
+	return status, nil
 }
 
 func (s *realScanner) NewSyncScanner() SyncScanner {
@@ -80,93 +106,40 @@ func (s *realScanner) Close() error {
 
 var _ Scanner = &realScanner{}
 
-// lengthReader is a func that readMessage uses to read message length.
-// See readHexLength and readInt32.
-type lengthReader func(io.Reader) (int, error)
-
-// Reads the status, and if failure, reads the message and returns it as an error.
-// If the status is success, doesn't read the message.
-// req is just used to populate the AdbError, and can be nil.
-// messageLengthReader is the function passed to readMessage if the status is failure.
-func readStatusFailureAsError(r io.Reader, req string, messageLengthReader lengthReader) (string, error) {
-	status, err := readOctetString(req, r)
-	if err != nil {
-		return "", fmt.Errorf("error reading status for %s, %w", req, err)
+// readMessage reads a 4-byte hex string from r, then reads length bytes and returns them.
+func readMessage(r io.Reader, buf []byte) ([]byte, error) {
+	// read 4 bytes
+	if len(buf) < 4 {
+		buf = make([]byte, 4)
 	}
-
-	if isFailureStatus(status) {
-		msg, err := readMessage(r, messageLengthReader)
-		if err != nil {
-			return "", fmt.Errorf("server returned error for %s, but couldn't read the error message, %w", req, err)
-		}
-
-		return "", adbServerError(req, string(msg))
-	}
-
-	return status, nil
-}
-
-func readOctetString(description string, r io.Reader) (string, error) {
-	octet := make([]byte, 4)
-	n, err := io.ReadFull(r, octet)
-
-	if err == io.ErrUnexpectedEOF {
-		return "", errIncompleteMessage(description, n, 4)
-	} else if err != nil {
-		return "", fmt.Errorf("error reading %s: %w", description, err)
-	}
-
-	return string(octet), nil
-}
-
-// readMessage reads a length from r, then reads length bytes and returns them.
-// lengthReader is the function used to read the length. Most operations encode
-// length as a hex string (readHexLength), but sync operations use little-endian
-// binary encoding (readInt32).
-func readMessage(r io.Reader, lengthReader lengthReader) ([]byte, error) {
-	var err error
-
-	length, err := lengthReader(r)
+	length, err := readHexLength(r, buf)
 	if err != nil {
 		return nil, err
 	}
 
-	data := make([]byte, length)
-	n, err := io.ReadFull(r, data)
-
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return data, fmt.Errorf("error reading message data: %w", err)
-	} else if err == io.ErrUnexpectedEOF {
-		return data, errIncompleteMessage("message data", n, length)
+	// read length buf
+	if int(length) > len(buf) {
+		buf = make([]byte, length)
 	}
-	return data, nil
+	n, err := io.ReadFull(r, buf[:length])
+	if err == io.ErrUnexpectedEOF {
+		return buf[:n], errIncompleteMessage("message data", n, int(length))
+	} else if err != nil {
+		return buf[:n], fmt.Errorf("error reading message data: %w", err)
+	}
+	return buf[:n], nil
 }
 
 // readHexLength reads the next 4 bytes from r as an ASCII hex-encoded length and parses them into an int.
-func readHexLength(r io.Reader) (int, error) {
-	lengthHex := make([]byte, 4)
-	n, err := io.ReadFull(r, lengthHex)
+func readHexLength(r io.Reader, buf []byte) (int, error) {
+	n, err := io.ReadFull(r, buf)
 	if err != nil {
 		return 0, errIncompleteMessage("length", n, 4)
 	}
 
-	length, err := strconv.ParseInt(string(lengthHex), 16, 64)
+	length, err := strconv.ParseInt(string(buf[:n]), 16, 64)
 	if err != nil {
-		return 0, fmt.Errorf("could not parse hex length:%v :%w", lengthHex, ErrAssertion)
+		return 0, fmt.Errorf("%w: could not parse hex length:%v", ErrAssertion, buf[:n])
 	}
-
-	// Clip the length to 255, as per the Google implementation.
-	if length > MaxMessageLength {
-		length = MaxMessageLength
-	}
-
 	return int(length), nil
-}
-
-// readInt32 reads the next 4 bytes from r as a little-endian integer.
-// Returns an int instead of an int32 to match the lengthReader type.
-func readInt32(r io.Reader) (int, error) {
-	var value int32
-	err := binary.Read(r, binary.LittleEndian, &value)
-	return int(value), err
 }

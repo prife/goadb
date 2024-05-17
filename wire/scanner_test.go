@@ -12,7 +12,7 @@ import (
 
 func TestReadStatusOkay(t *testing.T) {
 	s := newEofReader("OKAYd")
-	status, err := readStatusFailureAsError(s, "", readHexLength)
+	status, err := readStatusFailureAsError(s, nil, "")
 	assert.NoError(t, err)
 	assert.False(t, isFailureStatus(status))
 	assertNotEof(t, s)
@@ -20,7 +20,7 @@ func TestReadStatusOkay(t *testing.T) {
 
 func TestReadIncompleteStatus(t *testing.T) {
 	s := newEofReader("oka")
-	_, err := readStatusFailureAsError(s, "", readHexLength)
+	_, err := readStatusFailureAsError(s, nil, "")
 	assert.Contains(t, err.Error(), "error reading status for ")
 	assert.Equal(t, errors.Unwrap(err), errIncompleteMessage("", 3, 4))
 	assertEof(t, s)
@@ -28,28 +28,28 @@ func TestReadIncompleteStatus(t *testing.T) {
 
 func TestReadFailureIncompleteStatus(t *testing.T) {
 	s := newEofReader("FAIL")
-	_, err := readStatusFailureAsError(s, "req", readHexLength)
+	_, err := readStatusFailureAsError(s, nil, "req")
 	assert.Contains(t, err.Error(), "server returned error for req, but couldn't read the error message")
 	assertEof(t, s)
 }
 
 func TestReadFailureEmptyStatus(t *testing.T) {
 	s := newEofReader("FAIL0000")
-	_, err := readStatusFailureAsError(s, "", readHexLength)
+	_, err := readStatusFailureAsError(s, nil, "")
 	assert.EqualError(t, err, "AdbError: request , server error: ")
 	assertEof(t, s)
 }
 
 func TestReadFailureStatus(t *testing.T) {
 	s := newEofReader("FAIL0004fail")
-	_, err := readStatusFailureAsError(s, "", readHexLength)
+	_, err := readStatusFailureAsError(s, nil, "")
 	assert.EqualError(t, err, "AdbError: request , server error: fail")
 	assertEof(t, s)
 }
 
 func TestReadMessage(t *testing.T) {
 	s := newEofReader("0005hello")
-	msg, err := readMessage(s, readHexLength)
+	msg, err := readMessage(s, nil)
 	assert.NoError(t, err)
 	assert.Len(t, msg, 5)
 	assert.Equal(t, "hello", string(msg))
@@ -58,7 +58,7 @@ func TestReadMessage(t *testing.T) {
 
 func TestReadMessageWithExtraData(t *testing.T) {
 	s := newEofReader("0005hellothere")
-	msg, err := readMessage(s, readHexLength)
+	msg, err := readMessage(s, nil)
 	assert.NoError(t, err)
 	assert.Len(t, msg, 5)
 	assert.Equal(t, "hello", string(msg))
@@ -67,7 +67,7 @@ func TestReadMessageWithExtraData(t *testing.T) {
 
 func TestReadLongerMessage(t *testing.T) {
 	s := newEofReader("001b192.168.56.101:5555	device\n")
-	msg, err := readMessage(s, readHexLength)
+	msg, err := readMessage(s, nil)
 	assert.NoError(t, err)
 	assert.Len(t, msg, 27)
 	assert.Equal(t, "192.168.56.101:5555	device\n", string(msg))
@@ -76,7 +76,7 @@ func TestReadLongerMessage(t *testing.T) {
 
 func TestReadEmptyMessage(t *testing.T) {
 	s := newEofReader("0000")
-	msg, err := readMessage(s, readHexLength)
+	msg, err := readMessage(s, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "", string(msg))
 	assertEof(t, s)
@@ -84,7 +84,7 @@ func TestReadEmptyMessage(t *testing.T) {
 
 func TestReadIncompleteMessage(t *testing.T) {
 	s := newEofReader("0005hel")
-	msg, err := readMessage(s, readHexLength)
+	msg, err := readMessage(s, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errIncompleteMessage("message data", 3, 5), err)
 	assert.Equal(t, "hel\000\000", string(msg))
@@ -93,7 +93,7 @@ func TestReadIncompleteMessage(t *testing.T) {
 
 func TestReadLength(t *testing.T) {
 	s := newEofReader("000a")
-	l, err := readHexLength(s)
+	l, err := readHexLength(s, make([]byte, 4))
 	assert.NoError(t, err)
 	assert.Equal(t, 10, l)
 	assertEof(t, s)
@@ -101,13 +101,13 @@ func TestReadLength(t *testing.T) {
 
 func TestReadLengthIncompleteLength(t *testing.T) {
 	s := newEofReader("aaa")
-	_, err := readHexLength(s)
+	_, err := readHexLength(s, make([]byte, 4))
 	assert.Equal(t, errIncompleteMessage("length", 3, 4), err)
 	assertEof(t, s)
 }
 
 func assertEof(t *testing.T, r io.Reader) {
-	msg, err := readMessage(r, readHexLength)
+	msg, err := readMessage(r, nil)
 	assert.True(t, errors.Is(err, ErrConnectionReset))
 	assert.Nil(t, msg)
 }
