@@ -32,7 +32,7 @@ type ServerConfig struct {
 // Server knows how to start the adb server and connect to it.
 type server interface {
 	Start() error
-	Dial() (*wire.Conn, error)
+	Dial() (wire.IConn, error)
 }
 
 func roundTripSingleResponse(s server, req string) ([]byte, error) {
@@ -87,7 +87,7 @@ func newServer(config ServerConfig) (server, error) {
 
 // Dial tries to connect to the server. If the first attempt fails, tries starting the server before
 // retrying. If the second attempt fails, returns the error.
-func (s *realServer) Dial() (*wire.Conn, error) {
+func (s *realServer) Dial() (wire.IConn, error) {
 	conn, err := s.config.Dial(s.address)
 	if err != nil {
 		// Attempt to start the server and try again.

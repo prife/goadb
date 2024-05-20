@@ -14,6 +14,13 @@ const (
 	SyncMaxChunkSize = 1024 * 1024
 )
 
+type IConn interface {
+	io.Closer
+	Sender
+	Scanner
+	RoundTripSingleResponse(req []byte) (resp []byte, err error)
+}
+
 // Conn is a normal connection to an adb server.
 // For most cases, usage looks something like:
 //

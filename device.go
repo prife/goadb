@@ -219,7 +219,7 @@ func (c *Device) getSyncConn() (*FileService, error) {
 		return nil, err
 	}
 
-	return &FileService{conn.NewSyncConn()}, nil
+	return &FileService{}, nil
 }
 
 func (c *Device) NewFileService() (*FileService, error) {
@@ -228,7 +228,7 @@ func (c *Device) NewFileService() (*FileService, error) {
 
 // dialDevice switches the connection to communicate directly with the device
 // by requesting the transport defined by the DeviceDescriptor.
-func (c *Device) dialDevice() (*wire.Conn, error) {
+func (c *Device) dialDevice() (wire.IConn, error) {
 	conn, err := c.server.Dial()
 	if err != nil {
 		return nil, err

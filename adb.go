@@ -33,7 +33,7 @@ func NewWithConfig(config ServerConfig) (*Adb, error) {
 }
 
 // Dial establishes a connection with the adb server.
-func (c *Adb) Dial() (*wire.Conn, error) {
+func (c *Adb) Dial() (wire.IConn, error) {
 	return c.server.Dial()
 }
 
