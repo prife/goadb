@@ -48,11 +48,29 @@ func TestFileService_PushFile(t *testing.T) {
 	}
 	defer fs.Close()
 
-	err = fs.PushFile("/Users/wetest/Downloads/Docker.dmg", "/sdcard/Docker.dmg",
+	err = fs.PushFile("/Users/wetest/Downloads/RTR4-CN.pdf", "/sdcard/RTR4-CN.pdf",
 		func(total, sent int64, duration time.Duration, status string) {
 			percent := float64(sent) / float64(total) * 100
 			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
 			fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, sent, speedKBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFileService_PullFile(t *testing.T) {
+	fs, err := newFs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	err = fs.PullFile("/sdcard/RTR4-CN.pdf", "1.pdf",
+		func(total, sent int64, duration time.Duration, status string) {
+			percent := float64(sent) / float64(total) * 100
+			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
+			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
 		})
 	if err != nil {
 		t.Fatal(err)

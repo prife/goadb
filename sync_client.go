@@ -111,6 +111,67 @@ func (conn *FileService) sendFile(path string, mode os.FileMode, mtime time.Time
 	return newSyncFileWriter(conn.SyncConn, mtime), nil
 }
 
+func (s *FileService) PullFile(remotePath, localPath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
+	info, err := s.stat(remotePath)
+	if err != nil {
+		return err
+	}
+	size := info.Size
+
+	// FIXME: need support Dir or file
+	writer, err := os.Create(localPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error opening local file %s: %s\n", localPath, err)
+		return err
+	}
+	defer writer.Close()
+
+	// open remote reader
+	reader, err := s.receiveFile(remotePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
+		return
+	}
+	defer reader.Close()
+
+	// copy with progress
+	// NOTE: optimize memory cost
+	var maxWriteSize int
+	if size < 1024*1024 {
+		maxWriteSize = 128 * 1024
+	} else {
+		maxWriteSize = 1024 * 1024
+	}
+
+	chunk := make([]byte, maxWriteSize)
+	startTime := time.Now()
+	var sent int64
+	for {
+		n, err := reader.Read(chunk)
+		fmt.Println("----", n, err)
+		if err != nil && err != io.EOF {
+			return err
+		} else if err == io.EOF {
+			return nil
+		}
+		// if n == 0 {
+		// 	break
+		// }
+		if n > 0 {
+			if handler != nil {
+				sent += int64(n)
+				handler(int64(size), sent, time.Since(startTime), "pull")
+			}
+			_, err = writer.Write(chunk[0:n])
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+	return
+}
+
 func (s *FileService) PushFile(localPath, remotePath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
 	info, err := os.Lstat(localPath)
 	if err != nil {
