@@ -2,7 +2,6 @@ package wire
 
 import (
 	"bytes"
-	"io"
 	"testing"
 	"time"
 
@@ -69,11 +68,7 @@ func TestSyncSendBytes(t *testing.T) {
 func TestSyncReadBytes(t *testing.T) {
 	s := NewSyncConn(makeMockConnStr("\005\000\000\000helloworld"))
 
-	reader, err := s.ReadBytes()
+	buf, err := s.ReadBytes(nil)
 	assert.NoError(t, err)
-	assert.NotNil(t, reader)
-
-	str, err := io.ReadAll(reader)
-	assert.NoError(t, err)
-	assert.Equal(t, "hello", string(str))
+	assert.Equal(t, "hello", string(buf))
 }

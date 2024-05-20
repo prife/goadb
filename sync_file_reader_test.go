@@ -16,9 +16,9 @@ func TestReadNextChunk(t *testing.T) {
 	// Read 1st chunk
 	reader, err := readNextChunk(s)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(6), reader.(*io.LimitedReader).N)
+	assert.Equal(t, int32(6), reader)
 	buf := make([]byte, 10)
-	n, err := reader.Read(buf)
+	n, err := s.Read(buf[:reader])
 	assert.NoError(t, err)
 	assert.Equal(t, 6, n)
 	assert.Equal(t, "hello ", string(buf[:6]))
@@ -26,9 +26,9 @@ func TestReadNextChunk(t *testing.T) {
 	// Read 2nd chunk
 	reader, err = readNextChunk(s)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(5), reader.(*io.LimitedReader).N)
+	assert.Equal(t, int32(5), reader)
 	buf = make([]byte, 10)
-	n, err = reader.Read(buf)
+	n, err = s.Read(buf[:reader])
 	assert.NoError(t, err)
 	assert.Equal(t, 5, n)
 	assert.Equal(t, "world", string(buf[:5]))
@@ -86,7 +86,9 @@ func TestReadAll(t *testing.T) {
 func TestReadError(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"FAIL\004\000\000\000fail"))
-	_, err := newSyncFileReader(s)
+	r, err := newSyncFileReader(s)
+	assert.Nil(t, err)
+	_, err = r.Read(nil)
 	assert.EqualError(t, err, "AdbError: request read-chunk, server error: fail")
 }
 
@@ -96,10 +98,13 @@ func TestReadEmpty(t *testing.T) {
 	r, err := newSyncFileReader(s)
 	assert.NoError(t, err)
 
+	data, err := io.ReadAll(r)
+	assert.NoError(t, err)
+	assert.Empty(t, data)
 	// Multiple read calls that return EOF is a valid case.
 	for i := 0; i < 5; i++ {
 		data, err := io.ReadAll(r)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, io.EOF)
 		assert.Empty(t, data)
 	}
 }
@@ -107,7 +112,8 @@ func TestReadEmpty(t *testing.T) {
 func TestReadErrorNotFound(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"FAIL\031\000\000\000No such file or directory"))
-	_, err := newSyncFileReader(s)
+	r, _ := newSyncFileReader(s)
+	_, err := r.Read(nil)
 	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
 	assert.EqualError(t, err, "FileNoExist: no such file or directory")
 }

@@ -27,11 +27,8 @@ type ISyncConn interface {
 
 	// Reads an octet length, followed by length bytes.
 	ReadString() (string, error)
-
-	// Reads an octet length, and returns a reader that will read length
-	// bytes (see io.LimitReader). The returned reader should be fully
-	// read before reading anything off the Scanner again.
-	ReadBytes() (io.Reader, error)
+	// Reads an octet length, and then the length of bytes.
+	ReadBytes([]byte) ([]byte, error)
 
 	// SendOctetString sends a 4-byte string.
 	SendOctetString(string) error
@@ -53,7 +50,7 @@ func NewSyncConn(r net.Conn) *SyncConn {
 	return &SyncConn{r, make([]byte, 4), make([]byte, 4)}
 }
 
-// ReadStatus reads a little-endian length from r, then reads length bytes and returns them
+// ReadStatus reads a 4-byte status string and returns it.
 func (s *SyncConn) ReadStatus(req string) (string, error) {
 	return readSyncStatusFailureAsError(s, s.rbuf, req)
 }
@@ -99,13 +96,17 @@ func (s *SyncConn) ReadString() (string, error) {
 
 	return string(bytes), nil
 }
-func (s *SyncConn) ReadBytes() (io.Reader, error) {
+
+func (s *SyncConn) ReadBytes(buf []byte) (out []byte, err error) {
 	length, err := s.ReadInt32()
 	if err != nil {
 		return nil, fmt.Errorf("error reading bytes from sync scanner: %w", err)
 	}
-
-	return io.LimitReader(s, int64(length)), nil
+	if len(buf) < int(length) {
+		buf = make([]byte, length)
+	}
+	n, err := io.ReadFull(s, buf[:length])
+	return buf[:n], err
 }
 
 // Reads the status, and if failure, reads the message and returns it as an error.

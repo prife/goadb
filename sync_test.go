@@ -66,7 +66,7 @@ func TestFileService_PullFile(t *testing.T) {
 	}
 	defer fs.Close()
 
-	err = fs.PullFile("/sdcard/RTR4-CN.pdf", "1.pdf",
+	err = fs.PullFile("/sdcard/WeChatMac.dmg", "WeChatMac.dmg",
 		func(total, sent int64, duration time.Duration, status string) {
 			percent := float64(sent) / float64(total) * 100
 			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
