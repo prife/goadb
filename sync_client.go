@@ -50,7 +50,27 @@ func (conn *FileService) stat(path string) (*DirEntry, error) {
 		return nil, fmt.Errorf("%w: expected stat ID 'STAT', but got '%s'", wire.ErrAssertion, id)
 	}
 
-	return readStat(conn)
+	mode, err := conn.ReadFileMode()
+	if err != nil {
+		return nil, fmt.Errorf("error reading file mode: %w", err)
+	}
+	size, err := conn.ReadInt32()
+	if err != nil {
+		return nil, fmt.Errorf("error reading file size: %w", err)
+	}
+	mtime, err := conn.ReadTime()
+	if err != nil {
+		err = fmt.Errorf("error reading file time: %w", err)
+		return nil, err
+	}
+
+	// adb doesn't indicate when a file doesn't exist, but will return all zeros.
+	// Theoretically this could be an actual file, but that's very unlikely.
+	if mode == os.FileMode(0) && size == 0 && mtime == zeroTime {
+		return nil, fmt.Errorf("%w: file doesn't exist", wire.ErrFileNoExist)
+	}
+
+	return &DirEntry{Mode: mode, Size: size, ModifiedAt: mtime}, nil
 }
 
 func (conn *FileService) listDirEntries(path string) (entries *DirEntries, err error) {
@@ -192,36 +212,5 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(total, s
 		return err
 	}
 	_ = info
-	return
-}
-
-func readStat(s wire.ISyncConn) (entry *DirEntry, err error) {
-	mode, err := s.ReadFileMode()
-	if err != nil {
-		err = fmt.Errorf("error reading file mode: %w", err)
-		return
-	}
-	size, err := s.ReadInt32()
-	if err != nil {
-		err = fmt.Errorf("error reading file size: %w", err)
-		return
-	}
-	mtime, err := s.ReadTime()
-	if err != nil {
-		err = fmt.Errorf("error reading file time: %w", err)
-		return
-	}
-
-	// adb doesn't indicate when a file doesn't exist, but will return all zeros.
-	// Theoretically this could be an actual file, but that's very unlikely.
-	if mode == os.FileMode(0) && size == 0 && mtime == zeroTime {
-		return nil, fmt.Errorf("%w: file doesn't exist", wire.ErrFileNoExist)
-	}
-
-	entry = &DirEntry{
-		Mode:       mode,
-		Size:       size,
-		ModifiedAt: mtime,
-	}
 	return
 }
