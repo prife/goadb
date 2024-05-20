@@ -3,7 +3,6 @@ package adb
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/prife/goadb/wire"
@@ -26,16 +25,6 @@ func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) io.WriteCloser {
 		mtime:    mtime,
 		syncConn: s,
 	}
-}
-
-// encodePathAndMode encodes a path and file mode as required for starting a send file stream.
-// From https://android.googlesource.com/platform/system/core/+/master/adb/SYNC.TXT:
-//
-//	The remote file name is split into two parts separated by the last
-//	comma (","). The first part is the actual path, while the second is a decimal
-//	encoded file mode containing the permissions of the file on device.
-func encodePathAndMode(path string, mode os.FileMode) []byte {
-	return []byte(fmt.Sprintf("%s,%d", path, uint32(mode.Perm())))
 }
 
 // Write writes the min of (len(buf), 64k).

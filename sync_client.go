@@ -81,7 +81,7 @@ func (conn *FileService) listDirEntries(path string) (entries *DirEntries, err e
 		return
 	}
 
-	return &DirEntries{scanner: conn}, nil
+	return &DirEntries{syncConn: conn.SyncConn}, nil
 }
 
 func (conn *FileService) receiveFile(path string) (io.ReadCloser, error) {
@@ -103,7 +103,13 @@ func (conn *FileService) sendFile(path string, mode os.FileMode, mtime time.Time
 		return nil, err
 	}
 
-	pathAndMode := encodePathAndMode(path, mode)
+	// encodes a path and file mode as required for starting a send file stream.
+	// From https://android.googlesource.com/platform/system/core/+/master/adb/SYNC.TXT:
+	//	The remote file name is split into two parts separated by the last
+	//	comma (","). The first part is the actual path, while the second is a decimal
+	//	encoded file mode containing the permissions of the file on device.
+	pathAndMode := []byte(fmt.Sprintf("%s,%d", path, uint32(mode.Perm())))
+
 	if err := conn.SendBytes(pathAndMode); err != nil {
 		return nil, err
 	}

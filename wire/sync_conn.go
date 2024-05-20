@@ -19,28 +19,6 @@ import (
 // Length headers and other integers are encoded in little-endian, with 32 bits.
 // File mode seems to be encoded as POSIX file mode.
 // Modification time seems to be the Unix timestamp format, i.e. seconds since Epoch UTC.
-type ISyncConn interface {
-	io.Closer
-	StatusReader
-	ReadInt32() (int32, error)
-	ReadFileMode() (os.FileMode, error)
-	ReadTime() (time.Time, error)
-
-	// Reads an octet length, followed by length bytes.
-	ReadString() (string, error)
-	// Reads an octet length, and then the length of bytes.
-	ReadBytes([]byte) ([]byte, error)
-
-	// SendOctetString sends a 4-byte string.
-	SendOctetString(string) error
-	SendInt32(int32) error
-	SendFileMode(os.FileMode) error
-	SendTime(time.Time) error
-	// Sends len(data) as an octet, followed by the bytes.
-	// If data is bigger than SyncMaxChunkSize, it returns an assertion error.
-	SendBytes(data []byte) error
-}
-
 type SyncConn struct {
 	net.Conn
 	rbuf []byte
@@ -81,6 +59,7 @@ func (s *SyncConn) ReadTime() (time.Time, error) {
 	return time.Unix(int64(seconds), 0).UTC(), nil
 }
 
+// Reads an octet length, followed by length bytes.
 func (s *SyncConn) ReadString() (string, error) {
 	length, err := s.ReadInt32()
 	if err != nil {
@@ -98,6 +77,7 @@ func (s *SyncConn) ReadString() (string, error) {
 	return string(bytes), nil
 }
 
+// Reads an octet length, and then the length of bytes.
 func (s *SyncConn) ReadBytes(buf []byte) (out []byte, err error) {
 	length, err := s.ReadInt32()
 	if err != nil {
@@ -186,6 +166,7 @@ func readSyncMessage(r io.Reader, buf []byte) ([]byte, error) {
 	return buf[:n], nil
 }
 
+// SendOctetString sends a 4-byte string.
 func (s *SyncConn) SendOctetString(str string) error {
 	if len(str) != 4 {
 		return fmt.Errorf("%w: octet string must be exactly 4 bytes: '%s'", ErrAssertion, str)
@@ -218,6 +199,8 @@ func (s *SyncConn) SendTime(t time.Time) error {
 	return nil
 }
 
+// SendBytes send len(data) as an octet, followed by the bytes.
+// if data is bigger than SyncMaxChunkSize, it returns an assertion error.
 func (s *SyncConn) SendBytes(data []byte) error {
 	length := len(data)
 	if length > SyncMaxChunkSize {
