@@ -2,7 +2,9 @@ package wire
 
 import (
 	"bytes"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +25,7 @@ func TestWriteEmptyMessage(t *testing.T) {
 
 func NewTestSender() (Sender, *TestWriter) {
 	w := new(TestWriter)
-	return NewSender(w), w
+	return NewConn(w), w
 }
 
 // TestWriter is a wrapper around a bytes.Buffer that implements io.Closer.
@@ -33,5 +35,24 @@ type TestWriter struct {
 
 func (b *TestWriter) Close() error {
 	// No-op.
+	return nil
+}
+
+func (b *TestWriter) LocalAddr() net.Addr {
+	return nil
+}
+func (b *TestWriter) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (b *TestWriter) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (b *TestWriter) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (b *TestWriter) SetWriteDeadline(t time.Time) error {
 	return nil
 }

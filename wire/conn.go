@@ -2,6 +2,8 @@ package wire
 
 import (
 	"fmt"
+	"io"
+	"net"
 )
 
 const (
@@ -31,22 +33,39 @@ const (
 // For most commands, the server will close the connection after sending the response.
 // You should still always call Close() when you're done with the connection.
 type Conn struct {
-	Scanner
-	Sender
+	net.Conn
+	rbuf []byte
 }
 
-func NewConn(scanner Scanner, sender Sender) *Conn {
-	return &Conn{scanner, sender}
+func NewConn(conn net.Conn) *Conn {
+	return &Conn{
+		Conn: conn,
+		rbuf: make([]byte, 4),
+	}
 }
+
+var _ Sender = &Conn{}
+var _ Scanner = &Conn{}
 
 // NewSyncConn returns connection that can operate in sync mode.
 // The connection must already have been switched (by sending the sync command
 // to a specific device), or the return connection will return an error.
 func (c *Conn) NewSyncConn() *SyncConn {
 	return &SyncConn{
-		SyncScanner: c.Scanner.NewSyncScanner(),
-		SyncSender:  c.Sender.NewSyncSender(),
+		// SyncScanner: c.Scanner.NewSyncScanner(),
+		// SyncSender:  c.Sender.NewSyncSender(),
 	}
+}
+
+func (s *Conn) SendMessage(msg []byte) error {
+	if len(msg) > MaxMessageLength {
+		return fmt.Errorf("message length exceeds maximum:%d", len(msg))
+	}
+
+	// FIXME: when message is very large, if cost heavy
+	lengthAndMsg := fmt.Sprintf("%04x%s", len(msg), msg)
+	_, err := s.Write([]byte(lengthAndMsg))
+	return err
 }
 
 // RoundTripSingleResponse sends a message to the server, and reads a single
@@ -63,11 +82,25 @@ func (conn *Conn) RoundTripSingleResponse(req []byte) (resp []byte, err error) {
 	return conn.ReadMessage()
 }
 
+func (s *Conn) ReadStatus(req string) (string, error) {
+	return readStatusFailureAsError(s, s.rbuf, req)
+}
+
+func (s *Conn) ReadMessage() ([]byte, error) {
+	return readMessage(s, s.rbuf)
+}
+
+func (s *Conn) ReadUntilEof() ([]byte, error) {
+	data, err := io.ReadAll(s)
+	if err != nil {
+		return nil, fmt.Errorf("error reading until EOF: %w", err)
+	}
+	return data, nil
+}
+
 func (conn *Conn) Close() error {
-	senderErr := conn.Sender.Close()
-	scannerErr := conn.Scanner.Close()
-	if senderErr != nil || scannerErr != nil {
-		return fmt.Errorf("error closing connection: %w, %w", senderErr, scannerErr)
+	if err := conn.Conn.Close(); err != nil {
+		return fmt.Errorf("error closing connection: %w", err)
 	}
 	return nil
 }

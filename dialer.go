@@ -2,9 +2,7 @@ package adb
 
 import (
 	"fmt"
-	"io"
 	"net"
-	"runtime"
 
 	"github.com/prife/goadb/wire"
 )
@@ -24,17 +22,5 @@ func (tcpDialer) Dial(address string) (*wire.Conn, error) {
 		return nil, fmt.Errorf("%w: error dialing %s", wire.ErrServerNotAvailable, address)
 	}
 
-	// net.Conn can't be closed more than once, but wire.Conn will try to close both sender and scanner
-	// so we need to wrap it to make it safe.
-	safeConn := wire.MultiCloseable(netConn)
-
-	// Prevent leaking the network connection, not sure if TCPConn does this itself.
-	// Note that the network connection may still be in use after the conn isn't (scanners/senders
-	// can give their underlying connections to other scanner/sender types), so we can't
-	// set the finalizer on conn.
-	runtime.SetFinalizer(safeConn, func(conn io.ReadWriteCloser) {
-		conn.Close()
-	})
-
-	return wire.NewConn(wire.NewScanner(safeConn), wire.NewSender(safeConn)), nil
+	return wire.NewConn(netConn), nil
 }

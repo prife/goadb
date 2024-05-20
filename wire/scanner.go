@@ -36,33 +36,7 @@ type Scanner interface {
 	StatusReader
 	ReadMessage() ([]byte, error)
 	ReadUntilEof() ([]byte, error)
-
-	NewSyncScanner() SyncScanner
-}
-
-type realScanner struct {
-	reader io.ReadCloser
-	rbuf   []byte
-}
-
-func NewScanner(r io.ReadCloser) Scanner {
-	return &realScanner{r, make([]byte, 4)}
-}
-
-func (s *realScanner) ReadStatus(req string) (string, error) {
-	return readStatusFailureAsError(s.reader, s.rbuf, req)
-}
-
-func (s *realScanner) ReadMessage() ([]byte, error) {
-	return readMessage(s.reader, s.rbuf)
-}
-
-func (s *realScanner) ReadUntilEof() ([]byte, error) {
-	data, err := io.ReadAll(s.reader)
-	if err != nil {
-		return nil, fmt.Errorf("error reading until EOF: %w", err)
-	}
-	return data, nil
+	// NewSyncScanner() SyncScanner
 }
 
 // Reads the status, and if failure, reads the message and returns it as an error.
@@ -93,18 +67,9 @@ func readStatusFailureAsError(r io.Reader, buf []byte, req string) (string, erro
 	return status, nil
 }
 
-func (s *realScanner) NewSyncScanner() SyncScanner {
-	return NewSyncScanner(s.reader)
-}
-
-func (s *realScanner) Close() error {
-	if err := s.reader.Close(); err != nil {
-		return fmt.Errorf("error closing scanner: %w", err)
-	}
-	return nil
-}
-
-var _ Scanner = &realScanner{}
+// func (s *realScanner) NewSyncScanner() SyncScanner {
+// 	return NewSyncScanner(s.reader)
+// }
 
 // readMessage reads a 4-byte hex string from r, then reads length bytes and returns them.
 func readMessage(r io.Reader, buf []byte) ([]byte, error) {

@@ -1,14 +1,18 @@
 package adb
 
 import (
+	"bytes"
 	"io"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/prife/goadb/wire"
 )
 
 // MockServer implements Server, Scanner, and Sender.
 type MockServer struct {
+	mockConn
 	// Each time an operation is performed, if this slice is non-empty, the head element
 	// of this slice is returned and removed from the slice. If the head is nil, it is removed
 	// but not returned.
@@ -34,7 +38,7 @@ func (s *MockServer) Dial() (*wire.Conn, error) {
 	if err := s.getNextErrToReturn(); err != nil {
 		return nil, err
 	}
-	return wire.NewConn(s, s), nil
+	return wire.NewConn(s), nil
 }
 
 func (s *MockServer) Start() error {
@@ -113,4 +117,32 @@ func (s *MockServer) getNextErrToReturn() (err error) {
 
 func (s *MockServer) logMethod(name string) {
 	s.Trace = append(s.Trace, name)
+}
+
+type mockConn struct {
+	bytes.Buffer
+}
+
+func (b *mockConn) Close() error {
+	// No-op.
+	return nil
+}
+
+func (b *mockConn) LocalAddr() net.Addr {
+	return nil
+}
+func (b *mockConn) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (b *mockConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (b *mockConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (b *mockConn) SetWriteDeadline(t time.Time) error {
+	return nil
 }
