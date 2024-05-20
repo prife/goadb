@@ -97,11 +97,6 @@ func (s *MockServer) SendMessage(msg []byte) error {
 	return nil
 }
 
-func (s *MockServer) NewSyncScanner() wire.SyncScanner {
-	s.logMethod("NewSyncScanner")
-	return nil
-}
-
 func (s *MockServer) Close() error {
 	s.logMethod("Close")
 	if err := s.getNextErrToReturn(); err != nil {

@@ -4,59 +4,23 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"time"
 )
 
-type SyncScanner interface {
-	io.Closer
-	StatusReader
-	ReadInt32() (int32, error)
-	ReadFileMode() (os.FileMode, error)
-	ReadTime() (time.Time, error)
-
-	// Reads an octet length, followed by length bytes.
-	ReadString() (string, error)
-
-	// Reads an octet length, and returns a reader that will read length
-	// bytes (see io.LimitReader). The returned reader should be fully
-	// read before reading anything off the Scanner again.
-	ReadBytes() (io.Reader, error)
-
-	// SendOctetString sends a 4-byte string.
-	SendOctetString(string) error
-	SendInt32(int32) error
-	SendFileMode(os.FileMode) error
-	SendTime(time.Time) error
-	// Sends len(data) as an octet, followed by the bytes.
-	// If data is bigger than SyncMaxChunkSize, it returns an assertion error.
-	SendBytes(data []byte) error
-}
-
-type realSyncScanner struct {
-	net.Conn
-	rbuf []byte
-	wbuf []byte
-}
-
-func NewSyncScanner(r net.Conn) SyncScanner {
-	return &realSyncScanner{r, make([]byte, 4), make([]byte, 4)}
-}
-
 // ReadStatus reads a little-endian length from r, then reads length bytes and returns them
-func (s *realSyncScanner) ReadStatus(req string) (string, error) {
+func (s *SyncConn) ReadStatus(req string) (string, error) {
 	return readSyncStatusFailureAsError(s, s.rbuf, req)
 }
 
-func (s *realSyncScanner) ReadInt32() (int32, error) {
+func (s *SyncConn) ReadInt32() (int32, error) {
 	if _, err := io.ReadFull(s, s.rbuf[:4]); err != nil {
 		return 0, err
 	}
 	return int32(binary.LittleEndian.Uint32(s.rbuf)), nil
 }
 
-func (s *realSyncScanner) ReadFileMode() (os.FileMode, error) {
+func (s *SyncConn) ReadFileMode() (os.FileMode, error) {
 	var value uint32
 	err := binary.Read(s, binary.LittleEndian, &value)
 	if err != nil {
@@ -65,7 +29,7 @@ func (s *realSyncScanner) ReadFileMode() (os.FileMode, error) {
 	return ParseFileModeFromAdb(value), nil
 
 }
-func (s *realSyncScanner) ReadTime() (time.Time, error) {
+func (s *SyncConn) ReadTime() (time.Time, error) {
 	seconds, err := s.ReadInt32()
 	if err != nil {
 		return time.Time{}, fmt.Errorf("error reading time from sync scanner: %w", err)
@@ -74,7 +38,7 @@ func (s *realSyncScanner) ReadTime() (time.Time, error) {
 	return time.Unix(int64(seconds), 0).UTC(), nil
 }
 
-func (s *realSyncScanner) ReadString() (string, error) {
+func (s *SyncConn) ReadString() (string, error) {
 	length, err := s.ReadInt32()
 	if err != nil {
 		return "", fmt.Errorf("error reading length from sync scanner: %w", err)
@@ -90,7 +54,7 @@ func (s *realSyncScanner) ReadString() (string, error) {
 
 	return string(bytes), nil
 }
-func (s *realSyncScanner) ReadBytes() (io.Reader, error) {
+func (s *SyncConn) ReadBytes() (io.Reader, error) {
 	length, err := s.ReadInt32()
 	if err != nil {
 		return nil, fmt.Errorf("error reading bytes from sync scanner: %w", err)

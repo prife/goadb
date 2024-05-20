@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (s *realSyncScanner) SendOctetString(str string) error {
+func (s *SyncConn) SendOctetString(str string) error {
 	if len(str) != 4 {
 		return fmt.Errorf("%w: octet string must be exactly 4 bytes: '%s'", ErrAssertion, str)
 	}
@@ -18,28 +18,28 @@ func (s *realSyncScanner) SendOctetString(str string) error {
 	return nil
 }
 
-func (s *realSyncScanner) SendInt32(val int32) error {
+func (s *SyncConn) SendInt32(val int32) error {
 	if err := binary.Write(s, binary.LittleEndian, val); err != nil {
 		return fmt.Errorf("error sending int on sync sender: %w", err)
 	}
 	return nil
 }
 
-func (s *realSyncScanner) SendFileMode(mode os.FileMode) error {
+func (s *SyncConn) SendFileMode(mode os.FileMode) error {
 	if err := binary.Write(s, binary.LittleEndian, mode); err != nil {
 		return fmt.Errorf("error sending filemode on sync sender: %w", err)
 	}
 	return nil
 }
 
-func (s *realSyncScanner) SendTime(t time.Time) error {
+func (s *SyncConn) SendTime(t time.Time) error {
 	if err := s.SendInt32(int32(t.Unix())); err != nil {
 		return fmt.Errorf("error sending time on sync sender: %w", err)
 	}
 	return nil
 }
 
-func (s *realSyncScanner) SendBytes(data []byte) error {
+func (s *SyncConn) SendBytes(data []byte) error {
 	length := len(data)
 	if length > SyncMaxChunkSize {
 		// This limit might not apply to filenames, but it's big enough

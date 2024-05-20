@@ -11,7 +11,7 @@ import (
 // syncFileReader wraps a SyncConn that has requested to receive a file.
 type syncFileReader struct {
 	// Reader used to read data from the adb connection.
-	scanner wire.SyncScanner
+	syncConn wire.ISyncConn
 
 	// Reader for the current chunk only.
 	chunkReader io.Reader
@@ -22,9 +22,9 @@ type syncFileReader struct {
 
 var _ io.ReadCloser = &syncFileReader{}
 
-func newSyncFileReader(s wire.SyncScanner) (r io.ReadCloser, err error) {
+func newSyncFileReader(s wire.ISyncConn) (r io.ReadCloser, err error) {
 	r = &syncFileReader{
-		scanner: s,
+		syncConn: s,
 	}
 
 	// Read the header for the first chunk to consume any errors.
@@ -47,7 +47,7 @@ func (r *syncFileReader) Read(buf []byte) (n int, err error) {
 	}
 
 	if r.chunkReader == nil {
-		chunkReader, err := readNextChunk(r.scanner)
+		chunkReader, err := readNextChunk(r.syncConn)
 		if err != nil {
 			if err == io.EOF {
 				// We just read the last chunk, set our flag before passing it up.
@@ -77,12 +77,12 @@ func (r *syncFileReader) Read(buf []byte) (n int, err error) {
 }
 
 func (r *syncFileReader) Close() error {
-	return r.scanner.Close()
+	return r.syncConn.Close()
 }
 
 // readNextChunk creates an io.LimitedReader for the next chunk of data,
 // and returns io.EOF if the last chunk has been read.
-func readNextChunk(r wire.SyncScanner) (io.Reader, error) {
+func readNextChunk(r wire.ISyncConn) (io.Reader, error) {
 	status, err := r.ReadStatus("read-chunk")
 	if err != nil {
 		if strings.Contains(err.Error(), "No such file or directory") {

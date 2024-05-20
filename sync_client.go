@@ -195,7 +195,7 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(total, s
 	return
 }
 
-func readStat(s wire.SyncScanner) (entry *DirEntry, err error) {
+func readStat(s wire.ISyncConn) (entry *DirEntry, err error) {
 	mode, err := s.ReadFileMode()
 	if err != nil {
 		err = fmt.Errorf("error reading file mode: %w", err)

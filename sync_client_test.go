@@ -17,7 +17,7 @@ var someTime = time.Date(2015, 5, 3, 8, 8, 8, 0, time.UTC)
 
 func TestStatValid(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(makeMockConnBuf(&buf))}
+	conn := wire.NewSyncConn(makeMockConnBuf(&buf))
 
 	var mode os.FileMode = 0777
 
@@ -26,7 +26,7 @@ func TestStatValid(t *testing.T) {
 	conn.SendInt32(4)
 	conn.SendTime(someTime)
 
-	fs := &FileService{SyncConn: conn}
+	fs := &FileService{conn}
 
 	entry, err := fs.stat("/thing")
 	assert.NoError(t, err)
@@ -39,11 +39,11 @@ func TestStatValid(t *testing.T) {
 
 func TestStatBadResponse(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(makeMockConnBuf(&buf))}
+	conn := wire.NewSyncConn(makeMockConnBuf(&buf))
 
 	conn.SendOctetString("SPAT")
 
-	fs := &FileService{SyncConn: conn}
+	fs := &FileService{conn}
 	entry, err := fs.stat("/")
 	assert.Nil(t, entry)
 	assert.Error(t, err)
@@ -51,13 +51,13 @@ func TestStatBadResponse(t *testing.T) {
 
 func TestStatNoExist(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(makeMockConnBuf(&buf))}
+	conn := wire.NewSyncConn(makeMockConnBuf(&buf))
 
 	conn.SendOctetString("STAT")
 	conn.SendFileMode(0)
 	conn.SendInt32(0)
 	conn.SendTime(time.Unix(0, 0).UTC())
-	fs := &FileService{SyncConn: conn}
+	fs := &FileService{conn}
 	entry, err := fs.stat("/")
 	assert.Nil(t, entry)
 	assert.True(t, errors.Is(err, wire.ErrFileNoExist))

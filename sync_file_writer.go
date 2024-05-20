@@ -16,15 +16,15 @@ type syncFileWriter struct {
 	mtime time.Time
 
 	// Reader used to read data from the adb connection.
-	scanner wire.SyncScanner
+	syncConn wire.ISyncConn
 }
 
 var _ io.WriteCloser = &syncFileWriter{}
 
 func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) io.WriteCloser {
 	return &syncFileWriter{
-		mtime:   mtime,
-		scanner: s.SyncScanner,
+		mtime:    mtime,
+		syncConn: s,
 	}
 }
 
@@ -56,10 +56,10 @@ func (w *syncFileWriter) Write(buf []byte) (n int, err error) {
 			partialBuf = partialBuf[:wire.SyncMaxChunkSize]
 		}
 
-		if err := w.scanner.SendOctetString(wire.StatusSyncData); err != nil {
+		if err := w.syncConn.SendOctetString(wire.StatusSyncData); err != nil {
 			return written, err
 		}
-		if err := w.scanner.SendBytes(partialBuf); err != nil {
+		if err := w.syncConn.SendBytes(partialBuf); err != nil {
 			return written, err
 		}
 
@@ -75,14 +75,14 @@ func (w *syncFileWriter) Close() error {
 		w.mtime = time.Now()
 	}
 
-	if err := w.scanner.SendOctetString(wire.StatusSyncDone); err != nil {
+	if err := w.syncConn.SendOctetString(wire.StatusSyncDone); err != nil {
 		return fmt.Errorf("error sending done chunk to close stream: %w", err)
 	}
-	if err := w.scanner.SendTime(w.mtime); err != nil {
+	if err := w.syncConn.SendTime(w.mtime); err != nil {
 		return fmt.Errorf("error writing file modification time: %w", err)
 	}
 
-	if status, err := w.scanner.ReadStatus(""); err != nil || status != wire.StatusSuccess {
+	if status, err := w.syncConn.ReadStatus(""); err != nil || status != wire.StatusSuccess {
 		return fmt.Errorf("error reading status, should receive 'ID_OKAY': %w", err)
 	}
 	return nil
