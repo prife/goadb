@@ -18,18 +18,15 @@ const (
 )
 
 type ServerConfig struct {
+	// Dialer used to connect to the adb server.
+	Dialer
 	// Path to the adb executable. If empty, the PATH environment variable will be searched.
 	PathToAdb string
 	AutoStart bool
-	// Host and port the adb server is listening on.
-	// If not specified, will use the default port on localhost.
+	// Host and port the adb server is listening on. If not specified, will use the default port on localhost.
 	Host string
 	Port int
-
-	// Dialer used to connect to the adb server.
-	Dialer
-
-	fs *filesystem
+	fs   *filesystem
 }
 
 // Server knows how to start the adb server and connect to it.
