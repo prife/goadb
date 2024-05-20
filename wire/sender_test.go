@@ -30,7 +30,28 @@ func NewTestSender() (Sender, *TestWriter) {
 
 // TestWriter is a wrapper around a bytes.Buffer that implements io.Closer.
 type TestWriter struct {
-	bytes.Buffer
+	*bytes.Buffer
+}
+
+func MakeTestConn(str string) net.Conn {
+	w := &TestWriter{
+		Buffer: bytes.NewBufferString(str),
+	}
+	return w
+}
+
+func MakeTestConnBuf(buf *bytes.Buffer) net.Conn {
+	w := &TestWriter{
+		Buffer: buf,
+	}
+	return w
+}
+
+func MakeTestConnBytes(b []byte) net.Conn {
+	w := &TestWriter{
+		Buffer: bytes.NewBuffer(b),
+	}
+	return w
 }
 
 func (b *TestWriter) Close() error {

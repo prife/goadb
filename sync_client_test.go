@@ -17,7 +17,7 @@ var someTime = time.Date(2015, 5, 3, 8, 8, 8, 0, time.UTC)
 
 func TestStatValid(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(&buf), wire.NewSyncSender(&buf)}
+	conn := &wire.SyncConn{wire.NewSyncScanner(makeMockConnBuf(&buf))}
 
 	var mode os.FileMode = 0777
 
@@ -39,7 +39,7 @@ func TestStatValid(t *testing.T) {
 
 func TestStatBadResponse(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(&buf), wire.NewSyncSender(&buf)}
+	conn := &wire.SyncConn{wire.NewSyncScanner(makeMockConnBuf(&buf))}
 
 	conn.SendOctetString("SPAT")
 
@@ -51,7 +51,7 @@ func TestStatBadResponse(t *testing.T) {
 
 func TestStatNoExist(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(&buf), wire.NewSyncSender(&buf)}
+	conn := &wire.SyncConn{wire.NewSyncScanner(makeMockConnBuf(&buf))}
 
 	conn.SendOctetString("STAT")
 	conn.SendFileMode(0)

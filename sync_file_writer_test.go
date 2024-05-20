@@ -2,11 +2,10 @@ package adb
 
 import (
 	"bytes"
-	"testing"
-	"time"
-
 	"encoding/binary"
 	"strings"
+	"testing"
+	"time"
 
 	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +13,7 @@ import (
 
 func TestFileWriterWriteSingleChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(makeMockConn2("OKAY", &buf))}
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	n, err := writer.Write([]byte("hello"))
@@ -26,7 +25,7 @@ func TestFileWriterWriteSingleChunk(t *testing.T) {
 
 func TestFileWriterWriteMultiChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(makeMockConn2("OKAY", &buf))}
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	n, err := writer.Write([]byte("hello"))
@@ -42,7 +41,7 @@ func TestFileWriterWriteMultiChunk(t *testing.T) {
 
 func TestFileWriterWriteLargeChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(makeMockConn2("OKAY", &buf))}
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	// Send just enough data to get 2 chunks.
@@ -70,7 +69,7 @@ func TestFileWriterWriteLargeChunk(t *testing.T) {
 func TestFileWriterCloseEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(makeMockConn2("OKAY", &buf))}
 	writer := newSyncFileWriter(syncConn, mtime)
 
 	assert.NoError(t, writer.Close())
@@ -81,7 +80,7 @@ func TestFileWriterCloseEmpty(t *testing.T) {
 func TestFileWriterWriteClose(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(makeMockConn2("OKAY", &buf))}
 	writer := newSyncFileWriter(syncConn, mtime)
 
 	writer.Write([]byte("hello"))
@@ -92,7 +91,7 @@ func TestFileWriterWriteClose(t *testing.T) {
 
 func TestFileWriterCloseAutoMtime(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := &wire.SyncConn{wire.NewSyncScanner(strings.NewReader("OKAY")), wire.NewSyncSender(&buf)}
+	syncConn := &wire.SyncConn{wire.NewSyncScanner(makeMockConn2("OKAY", &buf))}
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	assert.NoError(t, writer.Close())

@@ -3,7 +3,6 @@ package adb
 import (
 	"errors"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/prife/goadb/wire"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestReadNextChunk(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
 
 	// Read 1st chunk
@@ -39,7 +38,7 @@ func TestReadNextChunk(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 }
 func TestReadNextChunkInvalidChunkId(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"ATAD\006\000\000\000hello "))
 
 	// Read 1st chunk
@@ -48,7 +47,7 @@ func TestReadNextChunkInvalidChunkId(t *testing.T) {
 }
 
 func TestReadMultipleCalls(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
 	reader, err := newSyncFileReader(s)
 	assert.NoError(t, err)
@@ -73,7 +72,7 @@ func TestReadMultipleCalls(t *testing.T) {
 }
 
 func TestReadAll(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
 	reader, err := newSyncFileReader(s)
 	assert.NoError(t, err)
@@ -85,14 +84,14 @@ func TestReadAll(t *testing.T) {
 }
 
 func TestReadError(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"FAIL\004\000\000\000fail"))
 	_, err := newSyncFileReader(s)
 	assert.EqualError(t, err, "AdbError: request read-chunk, server error: fail")
 }
 
 func TestReadEmpty(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"DONE"))
 	r, err := newSyncFileReader(s)
 	assert.NoError(t, err)
@@ -106,7 +105,7 @@ func TestReadEmpty(t *testing.T) {
 }
 
 func TestReadErrorNotFound(t *testing.T) {
-	s := wire.NewSyncScanner(strings.NewReader(
+	s := wire.NewSyncScanner(makeMockConnStr(
 		"FAIL\031\000\000\000No such file or directory"))
 	_, err := newSyncFileReader(s)
 	assert.True(t, errors.Is(err, wire.ErrFileNoExist))

@@ -123,15 +123,13 @@ func (conn *Conn) Close() error {
 // Modification time seems to be the Unix timestamp format, i.e. seconds since Epoch UTC.
 type SyncConn struct {
 	SyncScanner
-	SyncSender
 }
 
 // Close closes both the sender and the scanner, and returns any errors.
 func (c SyncConn) Close() error {
-	senderErr := c.SyncSender.Close()
 	scannerErr := c.SyncScanner.Close()
-	if senderErr != nil || scannerErr != nil {
-		return fmt.Errorf("error closing SyncConn: %w, %w", senderErr, scannerErr)
+	if scannerErr != nil {
+		return fmt.Errorf("error closing SyncConn: %w", scannerErr)
 	}
 	return nil
 }

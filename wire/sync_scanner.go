@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"time"
 )
@@ -22,20 +23,30 @@ type SyncScanner interface {
 	// bytes (see io.LimitReader). The returned reader should be fully
 	// read before reading anything off the Scanner again.
 	ReadBytes() (io.Reader, error)
+
+	// SendOctetString sends a 4-byte string.
+	SendOctetString(string) error
+	SendInt32(int32) error
+	SendFileMode(os.FileMode) error
+	SendTime(time.Time) error
+	// Sends len(data) as an octet, followed by the bytes.
+	// If data is bigger than SyncMaxChunkSize, it returns an assertion error.
+	SendBytes(data []byte) error
 }
 
 type realSyncScanner struct {
-	io.Reader
+	net.Conn
 	rbuf []byte
+	wbuf []byte
 }
 
-func NewSyncScanner(r io.Reader) SyncScanner {
-	return &realSyncScanner{r, make([]byte, 4)}
+func NewSyncScanner(r net.Conn) SyncScanner {
+	return &realSyncScanner{r, make([]byte, 4), make([]byte, 4)}
 }
 
 // ReadStatus reads a little-endian length from r, then reads length bytes and returns them
 func (s *realSyncScanner) ReadStatus(req string) (string, error) {
-	return readSyncStatusFailureAsError(s.Reader, s.rbuf, req)
+	return readSyncStatusFailureAsError(s, s.rbuf, req)
 }
 
 func (s *realSyncScanner) ReadInt32() (int32, error) {
@@ -47,7 +58,7 @@ func (s *realSyncScanner) ReadInt32() (int32, error) {
 
 func (s *realSyncScanner) ReadFileMode() (os.FileMode, error) {
 	var value uint32
-	err := binary.Read(s.Reader, binary.LittleEndian, &value)
+	err := binary.Read(s, binary.LittleEndian, &value)
 	if err != nil {
 		return 0, fmt.Errorf("error reading filemode from sync scanner: %w", err)
 	}
@@ -70,7 +81,7 @@ func (s *realSyncScanner) ReadString() (string, error) {
 	}
 
 	bytes := make([]byte, length)
-	n, err := io.ReadFull(s.Reader, bytes)
+	n, err := io.ReadFull(s, bytes)
 	if err == io.ErrUnexpectedEOF {
 		return "", errIncompleteMessage("bytes", n, int(length))
 	} else if err != nil {
@@ -85,14 +96,7 @@ func (s *realSyncScanner) ReadBytes() (io.Reader, error) {
 		return nil, fmt.Errorf("error reading bytes from sync scanner: %w", err)
 	}
 
-	return io.LimitReader(s.Reader, int64(length)), nil
-}
-
-func (s *realSyncScanner) Close() error {
-	if closer, ok := s.Reader.(io.Closer); ok {
-		return closer.Close()
-	}
-	return nil
+	return io.LimitReader(s, int64(length)), nil
 }
 
 // Reads the status, and if failure, reads the message and returns it as an error.
