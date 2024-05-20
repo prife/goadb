@@ -13,6 +13,7 @@ type syncFileReader struct {
 	// Reader used to read data from the adb connection.
 	syncConn *wire.SyncConn
 	toRead   int
+	eof      bool
 }
 
 var _ io.ReadCloser = &syncFileReader{}
@@ -25,10 +26,17 @@ func newSyncFileReader(s *wire.SyncConn) (r io.ReadCloser) {
 }
 
 func (r *syncFileReader) Read(buf []byte) (n int, err error) {
+	if r.eof {
+		return 0, io.EOF
+	}
+
 	var length int32
 	if r.toRead == 0 {
 		length, err = r.syncConn.ReadNextChunkSize()
-		if err != nil {
+		if err == io.EOF {
+			r.eof = true
+			return 0, err
+		} else if err != nil {
 			return 0, err
 		} else {
 			r.toRead = int(length)
