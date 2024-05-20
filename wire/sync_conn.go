@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -107,6 +108,28 @@ func (s *SyncConn) ReadBytes(buf []byte) (out []byte, err error) {
 	}
 	n, err := io.ReadFull(s, buf[:length])
 	return buf[:n], err
+}
+
+// ReadNextChunkSize read the 4-bytes length of next chunk of data,
+// returns io.EOF if the last chunk has been read.
+func (s *SyncConn) ReadNextChunkSize() (int32, error) {
+	status, err := s.ReadStatus("read-chunk")
+	if err != nil {
+		if strings.Contains(err.Error(), "No such file or directory") {
+			err = fmt.Errorf("%w: no such file or directory", ErrFileNoExist)
+		}
+		return 0, err
+	}
+
+	switch status {
+	case StatusSyncData:
+		return s.ReadInt32()
+	case StatusSyncDone:
+		return 0, io.EOF
+	default:
+		return 0, fmt.Errorf("%w: expected chunk id '%s' or '%s', but got '%s'",
+			ErrAssertion, StatusSyncData, StatusSyncDone, []byte(status))
+	}
 }
 
 // Reads the status, and if failure, reads the message and returns it as an error.

@@ -91,7 +91,7 @@ func (conn *FileService) receiveFile(path string) (io.ReadCloser, error) {
 	if err := conn.SendBytes([]byte(path)); err != nil {
 		return nil, err
 	}
-	return newSyncFileReader(conn.SyncConn)
+	return newSyncFileReader(conn.SyncConn), nil
 }
 
 // sendFile returns a WriteCloser than will write to the file at path on device.

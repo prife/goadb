@@ -16,7 +16,7 @@ type syncFileWriter struct {
 	mtime time.Time
 
 	// Reader used to read data from the adb connection.
-	syncConn wire.ISyncConn
+	syncConn *wire.SyncConn
 }
 
 var _ io.WriteCloser = &syncFileWriter{}

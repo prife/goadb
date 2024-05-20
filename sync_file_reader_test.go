@@ -14,7 +14,7 @@ func TestReadNextChunk(t *testing.T) {
 		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
 
 	// Read 1st chunk
-	reader, err := readNextChunk(s)
+	reader, err := s.ReadNextChunkSize()
 	assert.NoError(t, err)
 	assert.Equal(t, int32(6), reader)
 	buf := make([]byte, 10)
@@ -24,7 +24,7 @@ func TestReadNextChunk(t *testing.T) {
 	assert.Equal(t, "hello ", string(buf[:6]))
 
 	// Read 2nd chunk
-	reader, err = readNextChunk(s)
+	reader, err = s.ReadNextChunkSize()
 	assert.NoError(t, err)
 	assert.Equal(t, int32(5), reader)
 	buf = make([]byte, 10)
@@ -34,7 +34,7 @@ func TestReadNextChunk(t *testing.T) {
 	assert.Equal(t, "world", string(buf[:5]))
 
 	// Read DONE
-	_, err = readNextChunk(s)
+	_, err = s.ReadNextChunkSize()
 	assert.Equal(t, io.EOF, err)
 }
 func TestReadNextChunkInvalidChunkId(t *testing.T) {
@@ -42,18 +42,17 @@ func TestReadNextChunkInvalidChunkId(t *testing.T) {
 		"ATAD\006\000\000\000hello "))
 
 	// Read 1st chunk
-	_, err := readNextChunk(s)
+	_, err := s.ReadNextChunkSize()
 	assert.EqualError(t, err, "AssertionError: expected chunk id 'DATA' or 'DONE', but got 'ATAD'")
 }
 
 func TestReadMultipleCalls(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
-	reader, err := newSyncFileReader(s)
-	assert.NoError(t, err)
+	reader := newSyncFileReader(s)
 
 	firstByte := make([]byte, 1)
-	_, err = io.ReadFull(reader, firstByte)
+	_, err := io.ReadFull(reader, firstByte)
 	assert.NoError(t, err)
 	assert.Equal(t, "h", string(firstByte))
 
@@ -74,11 +73,9 @@ func TestReadMultipleCalls(t *testing.T) {
 func TestReadAll(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
-	reader, err := newSyncFileReader(s)
-	assert.NoError(t, err)
-
+	reader := newSyncFileReader(s)
 	buf := make([]byte, 20)
-	_, err = io.ReadFull(reader, buf)
+	_, err := io.ReadFull(reader, buf)
 	assert.Equal(t, io.ErrUnexpectedEOF, err)
 	assert.Equal(t, "hello world\000", string(buf[:12]))
 }
@@ -86,18 +83,15 @@ func TestReadAll(t *testing.T) {
 func TestReadError(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"FAIL\004\000\000\000fail"))
-	r, err := newSyncFileReader(s)
-	assert.Nil(t, err)
-	_, err = r.Read(nil)
+	r := newSyncFileReader(s)
+	_, err := r.Read(nil)
 	assert.EqualError(t, err, "AdbError: request read-chunk, server error: fail")
 }
 
 func TestReadEmpty(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"DONE"))
-	r, err := newSyncFileReader(s)
-	assert.NoError(t, err)
-
+	r := newSyncFileReader(s)
 	data, err := io.ReadAll(r)
 	assert.NoError(t, err)
 	assert.Empty(t, data)
@@ -112,7 +106,7 @@ func TestReadEmpty(t *testing.T) {
 func TestReadErrorNotFound(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
 		"FAIL\031\000\000\000No such file or directory"))
-	r, _ := newSyncFileReader(s)
+	r := newSyncFileReader(s)
 	_, err := r.Read(nil)
 	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
 	assert.EqualError(t, err, "FileNoExist: no such file or directory")
