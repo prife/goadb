@@ -154,15 +154,12 @@ func (s *FileService) PullFile(remotePath, localPath string, handler func(total,
 	var sent int64
 	for {
 		n, err := reader.Read(chunk)
-		fmt.Println("----", n, err)
-		if err != nil && err != io.EOF {
-			return err
-		} else if err == io.EOF {
+		// fmt.Println("----", n, err)
+		if err == io.EOF {
 			return nil
+		} else if err != nil {
+			return err
 		}
-		// if n == 0 {
-		// 	break
-		// }
 		if n > 0 {
 			if handler != nil {
 				sent += int64(n)
@@ -175,7 +172,6 @@ func (s *FileService) PullFile(remotePath, localPath string, handler func(total,
 		}
 
 	}
-	return
 }
 
 func (s *FileService) PushFile(localPath, remotePath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
