@@ -149,13 +149,13 @@ func runShellCommand(commandAndArgs []string, device adb.DeviceDescriptor) int {
 	}
 
 	client := client.Device(device)
-	output, err := client.RunCommand(command, args...)
+	reader, err := client.RunShellCommand(command, args...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
 	}
-
-	fmt.Print(output)
+	defer reader.Close()
+	io.Copy(os.Stdout, reader)
 	return 0
 }
 

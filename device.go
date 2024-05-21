@@ -45,6 +45,11 @@ func (c *Device) DevicePath() (string, error) {
 	return attr, wrapClientError(err, c, "DevicePath")
 }
 
+func (c *Device) DeviceFeatures() (string, error) {
+	attr, err := c.getAttribute("features")
+	return attr, wrapClientError(err, c, "DevicePath")
+}
+
 func (c *Device) State() (DeviceState, error) {
 	attr, err := c.getAttribute("get-state")
 	if err != nil {
@@ -81,7 +86,7 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 	return nil, wrapClientError(err, c, "DeviceInfo")
 }
 
-// RunCommand runs the specified commands on a shell on the device.
+// RunShellCommand runs the specified commands on a shell on the device.
 // From the Android docs:
 //
 //	Run 'command arg1 arg2 ...' in a shell on the device, and return
@@ -94,17 +99,16 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 // Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
 // This method quotes the arguments for you, and will return an error if any of them
 // contain double quotes.
-func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
-	cmd, err := prepareCommandLine(cmd, args...)
+func (c *Device) RunShellCommand(cmd string, args ...string) (fn io.ReadCloser, err error) {
+	cmd, err = prepareCommandLine(cmd, args...)
 	if err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+		return nil, wrapClientError(err, c, "RunCommand")
 	}
 
 	conn, err := c.dialDevice()
 	if err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+		return nil, wrapClientError(err, c, "RunCommand")
 	}
-	defer conn.Close()
 
 	req := fmt.Sprintf("shell:%s", cmd)
 
@@ -112,14 +116,25 @@ func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
 	// We read until the stream is closed.
 	// So, we can't use conn.RoundTripSingleResponse.
 	if err = conn.SendMessage([]byte(req)); err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+		conn.Close()
+		return nil, wrapClientError(err, c, "RunCommand")
 	}
 	if _, err = conn.ReadStatus(req); err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+		conn.Close()
+		return nil, wrapClientError(err, c, "RunCommand")
 	}
 
-	resp, err := conn.ReadUntilEof()
-	return string(resp), wrapClientError(err, c, "RunCommand")
+	return conn.(*wire.Conn), wrapClientError(err, c, "RunCommand")
+}
+
+func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
+	reader, err := c.RunShellCommand(cmd, args...)
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	resp, err := io.ReadAll(reader)
+	return string(resp), err
 }
 
 // Remount, from the official adb command’s docs:
