@@ -4,19 +4,16 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
-	"github.com/zach-klippenstein/goadb/wire"
+	"github.com/prife/goadb/wire"
 )
 
-/*
-Adb communicates with host services on the adb server.
-
-Eg.
-	client := adb.New()
-	client.ListDevices()
-
-See list of services at https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT.
-*/
+// Adb communicates with host services on the adb server.
+// Eg.
+//
+//	client := adb.New()
+//	client.ListDevices()
+//
+// See list of services at https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT.
 // TODO(z): Finish implementing host services.
 type Adb struct {
 	server server
@@ -36,7 +33,7 @@ func NewWithConfig(config ServerConfig) (*Adb, error) {
 }
 
 // Dial establishes a connection with the adb server.
-func (c *Adb) Dial() (*wire.Conn, error) {
+func (c *Adb) Dial() (wire.IConn, error) {
 	return c.server.Dial()
 }
 
@@ -61,51 +58,46 @@ func (c *Adb) NewDeviceWatcher() *DeviceWatcher {
 func (c *Adb) ServerVersion() (int, error) {
 	resp, err := roundTripSingleResponse(c.server, "host:version")
 	if err != nil {
-		return 0, wrapClientError(err, c, "GetServerVersion")
+		return 0, fmt.Errorf("GetServerVersion: %w", err)
 	}
 
 	version, err := c.parseServerVersion(resp)
 	if err != nil {
-		return 0, wrapClientError(err, c, "GetServerVersion")
+		return 0, fmt.Errorf("GetServerVersion: %w", err)
 	}
 	return version, nil
 }
 
-/*
-KillServer tells the server to quit immediately.
-
-Corresponds to the command:
-	adb kill-server
-*/
+// KillServer tells the server to quit immediately.
+// Corresponds to the command:
+//
+//	adb kill-server
 func (c *Adb) KillServer() error {
 	conn, err := c.server.Dial()
 	if err != nil {
-		return wrapClientError(err, c, "KillServer")
+		return fmt.Errorf("KillServer: %w", err)
 	}
 	defer conn.Close()
 
-	if err = wire.SendMessageString(conn, "host:kill"); err != nil {
-		return wrapClientError(err, c, "KillServer")
+	if err = conn.SendMessage([]byte("host:kill")); err != nil {
+		return fmt.Errorf("KillServer: %w", err)
 	}
-
 	return nil
 }
 
-/*
-ListDeviceSerials returns the serial numbers of all attached devices.
-
-Corresponds to the command:
-	adb devices
-*/
+// ListDeviceSerials returns the serial numbers of all attached devices.
+// Corresponds to the command:
+//
+//	adb devices
 func (c *Adb) ListDeviceSerials() ([]string, error) {
 	resp, err := roundTripSingleResponse(c.server, "host:devices")
 	if err != nil {
-		return nil, wrapClientError(err, c, "ListDeviceSerials")
+		return nil, fmt.Errorf("ListDeviceSerials: %w", err)
 	}
 
 	devices, err := parseDeviceList(string(resp), parseDeviceShort)
 	if err != nil {
-		return nil, wrapClientError(err, c, "ListDeviceSerials")
+		return nil, fmt.Errorf("ListDeviceSerials: %w", err)
 	}
 
 	serials := make([]string, len(devices))
@@ -115,35 +107,31 @@ func (c *Adb) ListDeviceSerials() ([]string, error) {
 	return serials, nil
 }
 
-/*
-ListDevices returns the list of connected devices.
-
-Corresponds to the command:
-	adb devices -l
-*/
+// ListDevices returns the list of connected devices.
+// Corresponds to the command:
+//
+//	adb devices -l
 func (c *Adb) ListDevices() ([]*DeviceInfo, error) {
 	resp, err := roundTripSingleResponse(c.server, "host:devices-l")
 	if err != nil {
-		return nil, wrapClientError(err, c, "ListDevices")
+		return nil, fmt.Errorf("ListDevices: %w", err)
 	}
 
 	devices, err := parseDeviceList(string(resp), parseDeviceLongE)
 	if err != nil {
-		return nil, wrapClientError(err, c, "ListDevices")
+		return nil, fmt.Errorf("ListDevices: %w", err)
 	}
 	return devices, nil
 }
 
-/*
-Connect connect to a device via TCP/IP
-
-Corresponds to the command:
-	adb connect
-*/
+// Connect connect to a device via TCP/IP
+// Corresponds to the command:
+//
+//	adb connect
 func (c *Adb) Connect(host string, port int) error {
 	_, err := roundTripSingleResponse(c.server, fmt.Sprintf("host:connect:%s:%d", host, port))
 	if err != nil {
-		return wrapClientError(err, c, "Connect")
+		return fmt.Errorf("Connect: %w", err)
 	}
 	return nil
 }
@@ -152,8 +140,7 @@ func (c *Adb) parseServerVersion(versionRaw []byte) (int, error) {
 	versionStr := string(versionRaw)
 	version, err := strconv.ParseInt(versionStr, 16, 32)
 	if err != nil {
-		return 0, errors.WrapErrorf(err, errors.ParseError,
-			"error parsing server version: %s", versionStr)
+		return 0, fmt.Errorf("error parsing server version: %s", versionStr)
 	}
 	return int(version), nil
 }

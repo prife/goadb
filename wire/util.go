@@ -1,12 +1,11 @@
 package wire
 
 import (
+	// "errors"
 	"fmt"
 	"io"
 	"regexp"
 	"sync"
-
-	"github.com/zach-klippenstein/goadb/internal/errors"
 )
 
 // ErrorResponseDetails is an error message returned by the server for a particular request.
@@ -23,63 +22,14 @@ type ErrorResponseDetails struct {
 var deviceNotFoundMessagePattern = regexp.MustCompile(`device( '.*')? not found`)
 
 func adbServerError(request string, serverMsg string) error {
-	var msg string
-	if request == "" {
-		msg = fmt.Sprintf("server error: %s", serverMsg)
-	} else {
-		msg = fmt.Sprintf("server error for %s request: %s", request, serverMsg)
-	}
-
-	errCode := errors.AdbError
 	if deviceNotFoundMessagePattern.MatchString(serverMsg) {
-		errCode = errors.DeviceNotFound
+		return fmt.Errorf("%w: request %s, server error: %s", ErrDeviceNotFound, request, serverMsg)
 	}
-
-	return &errors.Err{
-		Code:    errCode,
-		Message: msg,
-		Details: ErrorResponseDetails{
-			Request:   request,
-			ServerMsg: serverMsg,
-		},
-	}
-}
-
-// IsAdbServerErrorMatching returns true if err is an *Err with code AdbError and for which
-// predicate returns true when passed Details.ServerMsg.
-func IsAdbServerErrorMatching(err error, predicate func(string) bool) bool {
-	if err, ok := err.(*errors.Err); ok && err.Code == errors.AdbError {
-		return predicate(err.Details.(ErrorResponseDetails).ServerMsg)
-	}
-	return false
+	return fmt.Errorf("%w: request %s, server error: %s", ErrAdb, request, serverMsg)
 }
 
 func errIncompleteMessage(description string, actual int, expected int) error {
-	return &errors.Err{
-		Code:    errors.ConnectionResetError,
-		Message: fmt.Sprintf("incomplete %s: read %d bytes, expecting %d", description, actual, expected),
-		Details: struct {
-			ActualReadBytes int
-			ExpectedBytes   int
-		}{
-			ActualReadBytes: actual,
-			ExpectedBytes:   expected,
-		},
-	}
-}
-
-// writeFully writes all of data to w.
-// Inverse of io.ReadFully().
-func writeFully(w io.Writer, data []byte) error {
-	offset := 0
-	for offset < len(data) {
-		n, err := w.Write(data[offset:])
-		if err != nil {
-			return errors.WrapErrorf(err, errors.NetworkError, "error writing %d bytes at offset %d", len(data), offset)
-		}
-		offset += n
-	}
-	return nil
+	return fmt.Errorf("%w: incomplete %s: read %d bytes, expecting %d", ErrConnectionReset, description, actual, expected)
 }
 
 // MultiCloseable wraps c in a ReadWriteCloser that can be safely closed multiple times.

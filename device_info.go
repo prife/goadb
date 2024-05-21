@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
+	"github.com/prife/goadb/wire"
 )
 
 type DeviceInfo struct {
@@ -32,7 +32,7 @@ func (d *DeviceInfo) IsUsb() bool {
 
 func newDevice(serial, state string, attrs map[string]string) (*DeviceInfo, error) {
 	if serial == "" {
-		return nil, errors.AssertionErrorf("device serial cannot be blank")
+		return nil, fmt.Errorf("%w: device serial cannot be blank", wire.ErrAssertion)
 	}
 
 	var tid int
@@ -73,8 +73,7 @@ func parseDeviceList(list string, lineParseFunc func(string) (*DeviceInfo, error
 func parseDeviceShort(line string) (*DeviceInfo, error) {
 	fields := strings.Fields(line)
 	if len(fields) != 2 {
-		return nil, errors.Errorf(errors.ParseError,
-			"malformed device line, expected 2 fields but found %d", len(fields))
+		return nil, fmt.Errorf("%w: malformed device line, expected 2 fields but found %d", wire.ErrParse, len(fields))
 	}
 
 	return newDevice(fields[0], fields[1], map[string]string{})
@@ -98,7 +97,7 @@ func readBuff(buf *bytes.Buffer, toSpace bool) ([]byte, error) {
 }
 
 func parseDeviceLongE(line string) (*DeviceInfo, error) {
-	invalidErr := errors.Errorf(errors.ParseError, "invalid line:%s", line)
+	invalidErr := fmt.Errorf("%w: invalid line:%s", wire.ErrParse, line)
 	buf := bytes.NewBufferString(strings.TrimSpace(line))
 
 	// Read serial

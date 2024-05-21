@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
-	"github.com/zach-klippenstein/goadb/wire"
+	"github.com/prife/goadb/wire"
 )
 
 // MtimeOfClose should be passed to OpenWrite to set the file modification time to the time the Close
@@ -78,26 +77,23 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 		}
 	}
 
-	err = errors.Errorf(errors.DeviceNotFound, "device list doesn't contain serial %s", serial)
+	err = fmt.Errorf("%w: device list doesn't contain serial %s", wire.ErrDeviceNotFound, serial)
 	return nil, wrapClientError(err, c, "DeviceInfo")
 }
 
-/*
-RunCommand runs the specified commands on a shell on the device.
-
-From the Android docs:
-	Run 'command arg1 arg2 ...' in a shell on the device, and return
-	its output and error streams. Note that arguments must be separated
-	by spaces. If an argument contains a space, it must be quoted with
-	double-quotes. Arguments cannot contain double quotes or things
-	will go very wrong.
-
-	Note that this is the non-interactive version of "adb shell"
-Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
-
-This method quotes the arguments for you, and will return an error if any of them
-contain double quotes.
-*/
+// RunCommand runs the specified commands on a shell on the device.
+// From the Android docs:
+//
+//	Run 'command arg1 arg2 ...' in a shell on the device, and return
+//	its output and error streams. Note that arguments must be separated
+//	by spaces. If an argument contains a space, it must be quoted with
+//	double-quotes. Arguments cannot contain double quotes or things
+//	will go very wrong.
+//	Note that this is the non-interactive version of "adb shell"
+//
+// Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
+// This method quotes the arguments for you, and will return an error if any of them
+// contain double quotes.
 func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
 	cmd, err := prepareCommandLine(cmd, args...)
 	if err != nil {
@@ -126,15 +122,15 @@ func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
 	return string(resp), wrapClientError(err, c, "RunCommand")
 }
 
-/*
-Remount, from the official adb command’s docs:
-	Ask adbd to remount the device's filesystem in read-write mode,
-	instead of read-only. This is usually necessary before performing
-	an "adb sync" or "adb push" request.
-	This request may not succeed on certain builds which do not allow
-	that.
-Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
-*/
+// Remount, from the official adb command’s docs:
+//
+//	Ask adbd to remount the device's filesystem in read-write mode,
+//	instead of read-only. This is usually necessary before performing
+//	an "adb sync" or "adb push" request.
+//	This request may not succeed on certain builds which do not allow
+//	that.
+//
+// Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
 func (c *Device) Remount() (string, error) {
 	conn, err := c.dialDevice()
 	if err != nil {
@@ -152,7 +148,7 @@ func (c *Device) ListDirEntries(path string) (*DirEntries, error) {
 		return nil, wrapClientError(err, c, "ListDirEntries(%s)", path)
 	}
 
-	entries, err := listDirEntries(conn, path)
+	entries, err := conn.listDirEntries(path)
 	return entries, wrapClientError(err, c, "ListDirEntries(%s)", path)
 }
 
@@ -163,7 +159,7 @@ func (c *Device) Stat(path string) (*DirEntry, error) {
 	}
 	defer conn.Close()
 
-	entry, err := stat(conn, path)
+	entry, err := conn.stat(path)
 	return entry, wrapClientError(err, c, "Stat(%s)", path)
 }
 
@@ -173,7 +169,7 @@ func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
 		return nil, wrapClientError(err, c, "OpenRead(%s)", path)
 	}
 
-	reader, err := receiveFile(conn, path)
+	reader, err := conn.receiveFile(path)
 	return reader, wrapClientError(err, c, "OpenRead(%s)", path)
 }
 
@@ -187,7 +183,7 @@ func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (io.
 		return nil, wrapClientError(err, c, "OpenWrite(%s)", path)
 	}
 
-	writer, err := sendFile(conn, path, perms, mtime)
+	writer, err := conn.sendFile(path, perms, mtime)
 	return writer, wrapClientError(err, c, "OpenWrite(%s)", path)
 }
 
@@ -202,35 +198,40 @@ func (c *Device) getAttribute(attr string) (string, error) {
 	return string(resp), nil
 }
 
-func (c *Device) getSyncConn() (*wire.SyncConn, error) {
+func (c *Device) getSyncConn() (*FileService, error) {
 	conn, err := c.dialDevice()
 	if err != nil {
 		return nil, err
 	}
 
 	// Switch the connection to sync mode.
-	if err := wire.SendMessageString(conn, "sync:"); err != nil {
+	if err := conn.SendMessage([]byte("sync:")); err != nil {
 		return nil, err
 	}
 	if _, err := conn.ReadStatus("sync"); err != nil {
 		return nil, err
 	}
 
-	return conn.NewSyncConn(), nil
+	// FIXME: refactor in soon
+	return &FileService{SyncConn: conn.(*wire.Conn).NewSyncConn()}, nil
+}
+
+func (c *Device) NewFileService() (*FileService, error) {
+	return c.getSyncConn()
 }
 
 // dialDevice switches the connection to communicate directly with the device
 // by requesting the transport defined by the DeviceDescriptor.
-func (c *Device) dialDevice() (*wire.Conn, error) {
+func (c *Device) dialDevice() (wire.IConn, error) {
 	conn, err := c.server.Dial()
 	if err != nil {
 		return nil, err
 	}
 
 	req := fmt.Sprintf("host:%s", c.descriptor.getTransportDescriptor())
-	if err = wire.SendMessageString(conn, req); err != nil {
+	if err = conn.SendMessage([]byte(req)); err != nil {
 		conn.Close()
-		return nil, errors.WrapErrf(err, "error connecting to device '%s'", c.descriptor)
+		return nil, fmt.Errorf("error connecting to device '%s': %w", c.descriptor, err)
 	}
 
 	if _, err = conn.ReadStatus(req); err != nil {
@@ -245,12 +246,12 @@ func (c *Device) dialDevice() (*wire.Conn, error) {
 // arguments if required, and joins them into a valid adb command string.
 func prepareCommandLine(cmd string, args ...string) (string, error) {
 	if isBlank(cmd) {
-		return "", errors.AssertionErrorf("command cannot be empty")
+		return "", fmt.Errorf("%w: command cannot be empty", wire.ErrAssertion)
 	}
 
 	for i, arg := range args {
 		if strings.ContainsRune(arg, '"') {
-			return "", errors.Errorf(errors.ParseError, "arg at index %d contains an invalid double quote: %s", i, arg)
+			return "", fmt.Errorf("%w: arg at index %d contains an invalid double quote: %s", wire.ErrParse, i, arg)
 		}
 		if containsWhitespace(arg) {
 			args[i] = fmt.Sprintf("\"%s\"", arg)

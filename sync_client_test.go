@@ -3,21 +3,21 @@ package adb
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zach-klippenstein/goadb/internal/errors"
-	"github.com/zach-klippenstein/goadb/wire"
 )
 
 var someTime = time.Date(2015, 5, 3, 8, 8, 8, 0, time.UTC)
 
 func TestStatValid(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(&buf), wire.NewSyncSender(&buf)}
+	conn := wire.NewSyncConn(makeMockConnBuf(&buf))
 
 	var mode os.FileMode = 0777
 
@@ -26,7 +26,9 @@ func TestStatValid(t *testing.T) {
 	conn.SendInt32(4)
 	conn.SendTime(someTime)
 
-	entry, err := stat(conn, "/thing")
+	fs := &FileService{conn}
+
+	entry, err := fs.stat("/thing")
 	assert.NoError(t, err)
 	require.NotNil(t, entry)
 	assert.Equal(t, mode, entry.Mode, "expected os.FileMode %s, got %s", mode, entry.Mode)
@@ -37,25 +39,26 @@ func TestStatValid(t *testing.T) {
 
 func TestStatBadResponse(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(&buf), wire.NewSyncSender(&buf)}
+	conn := wire.NewSyncConn(makeMockConnBuf(&buf))
 
 	conn.SendOctetString("SPAT")
 
-	entry, err := stat(conn, "/")
+	fs := &FileService{conn}
+	entry, err := fs.stat("/")
 	assert.Nil(t, entry)
 	assert.Error(t, err)
 }
 
 func TestStatNoExist(t *testing.T) {
 	var buf bytes.Buffer
-	conn := &wire.SyncConn{wire.NewSyncScanner(&buf), wire.NewSyncSender(&buf)}
+	conn := wire.NewSyncConn(makeMockConnBuf(&buf))
 
 	conn.SendOctetString("STAT")
 	conn.SendFileMode(0)
 	conn.SendInt32(0)
 	conn.SendTime(time.Unix(0, 0).UTC())
-
-	entry, err := stat(conn, "/")
+	fs := &FileService{conn}
+	entry, err := fs.stat("/")
 	assert.Nil(t, entry)
-	assert.Equal(t, errors.FileNoExistError, err.(*errors.Err).Code)
+	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
 }

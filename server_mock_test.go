@@ -4,8 +4,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
-	"github.com/zach-klippenstein/goadb/wire"
+	"github.com/prife/goadb/wire"
 )
 
 // MockServer implements Server, Scanner, and Sender.
@@ -30,17 +29,29 @@ type MockServer struct {
 
 var _ server = &MockServer{}
 
-func (s *MockServer) Dial() (*wire.Conn, error) {
+func (s *MockServer) Dial() (wire.IConn, error) {
 	s.logMethod("Dial")
 	if err := s.getNextErrToReturn(); err != nil {
 		return nil, err
 	}
-	return wire.NewConn(s, s), nil
+	return s, nil
 }
 
 func (s *MockServer) Start() error {
 	s.logMethod("Start")
 	return nil
+}
+
+func (s *MockServer) RoundTripSingleResponse(req []byte) (resp []byte, err error) {
+	if err = s.SendMessage(req); err != nil {
+		return nil, err
+	}
+
+	if _, err = s.ReadStatus(string(req)); err != nil {
+		return nil, err
+	}
+
+	return s.ReadMessage()
 }
 
 func (s *MockServer) ReadStatus(req string) (string, error) {
@@ -57,7 +68,7 @@ func (s *MockServer) ReadMessage() ([]byte, error) {
 		return nil, err
 	}
 	if s.nextMsgIndex >= len(s.Messages) {
-		return nil, errors.WrapErrorf(io.EOF, errors.NetworkError, "")
+		return nil, io.EOF
 	}
 
 	s.nextMsgIndex++
@@ -83,16 +94,6 @@ func (s *MockServer) SendMessage(msg []byte) error {
 		return err
 	}
 	s.Requests = append(s.Requests, string(msg))
-	return nil
-}
-
-func (s *MockServer) NewSyncScanner() wire.SyncScanner {
-	s.logMethod("NewSyncScanner")
-	return nil
-}
-
-func (s *MockServer) NewSyncSender() wire.SyncSender {
-	s.logMethod("NewSyncSender")
 	return nil
 }
 

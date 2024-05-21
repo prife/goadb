@@ -1,10 +1,12 @@
-module github.com/zach-klippenstein/goadb
+module github.com/prife/goadb
 
 go 1.18
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2
 	github.com/cheggaaa/pb v1.0.29
+	github.com/prife/gomlib v0.0.4
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.14.0
 )

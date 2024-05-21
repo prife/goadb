@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/zach-klippenstein/goadb/wire"
+	"github.com/prife/goadb/wire"
 )
 
 // DirEntry holds information about a directory entry on a device.
@@ -18,8 +18,7 @@ type DirEntry struct {
 
 // DirEntries iterates over directory entries.
 type DirEntries struct {
-	scanner wire.SyncScanner
-
+	syncConn     *wire.SyncConn
 	currentEntry *DirEntry
 	err          error
 }
@@ -43,7 +42,7 @@ func (entries *DirEntries) Next() bool {
 		return false
 	}
 
-	entry, done, err := readNextDirListEntry(entries.scanner)
+	entry, done, err := readNextDirListEntry(entries.syncConn)
 	if err != nil {
 		entries.err = err
 		entries.Close()
@@ -70,10 +69,10 @@ func (entries *DirEntries) Err() error {
 // Close closes the connection to the adb.
 // Next() will call Close() before returning false.
 func (entries *DirEntries) Close() error {
-	return entries.scanner.Close()
+	return entries.syncConn.Close()
 }
 
-func readNextDirListEntry(s wire.SyncScanner) (entry *DirEntry, done bool, err error) {
+func readNextDirListEntry(s *wire.SyncConn) (entry *DirEntry, done bool, err error) {
 	status, err := s.ReadStatus("dir-entry")
 	if err != nil {
 		return

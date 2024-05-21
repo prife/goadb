@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +11,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/cheggaaa/pb"
-	adb "github.com/zach-klippenstein/goadb"
+	adb "github.com/prife/goadb"
+	"github.com/prife/goadb/wire"
 )
 
 const StdIoFilename = "-"
@@ -171,7 +173,7 @@ func pull(showProgress bool, remotePath, localPath string, device adb.DeviceDesc
 	client := client.Device(device)
 
 	info, err := client.Stat(remotePath)
-	if adb.HasErrCode(err, adb.ErrCode(adb.FileNoExistError)) {
+	if errors.Is(err, wire.ErrFileNoExist) {
 		fmt.Fprintln(os.Stderr, "remote file does not exist:", remotePath)
 		return 1
 	} else if err != nil {
@@ -181,7 +183,7 @@ func pull(showProgress bool, remotePath, localPath string, device adb.DeviceDesc
 
 	remoteFile, err := client.OpenRead(remotePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, adb.ErrorWithCauseChain(err))
+		fmt.Fprintf(os.Stderr, "error opening remote file %s: %v\n", remotePath, err)
 		return 1
 	}
 	defer remoteFile.Close()

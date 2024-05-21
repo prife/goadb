@@ -1,14 +1,13 @@
 package adb
 
 import (
-	stderrors "errors"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/zach-klippenstein/goadb/internal/errors"
-	"github.com/zach-klippenstein/goadb/wire"
+	"github.com/prife/goadb/wire"
 )
 
 const (
@@ -19,24 +18,21 @@ const (
 )
 
 type ServerConfig struct {
+	// Dialer used to connect to the adb server.
+	Dialer
 	// Path to the adb executable. If empty, the PATH environment variable will be searched.
 	PathToAdb string
 	AutoStart bool
-	// Host and port the adb server is listening on.
-	// If not specified, will use the default port on localhost.
+	// Host and port the adb server is listening on. If not specified, will use the default port on localhost.
 	Host string
 	Port int
-
-	// Dialer used to connect to the adb server.
-	Dialer
-
-	fs *filesystem
+	fs   *filesystem
 }
 
 // Server knows how to start the adb server and connect to it.
 type server interface {
 	Start() error
-	Dial() (*wire.Conn, error)
+	Dial() (wire.IConn, error)
 }
 
 func roundTripSingleResponse(s server, req string) ([]byte, error) {
@@ -75,12 +71,12 @@ func newServer(config ServerConfig) (server, error) {
 	if config.PathToAdb == "" {
 		path, err := config.fs.LookPath(AdbExecutableName)
 		if err != nil {
-			return nil, errors.WrapErrorf(err, errors.ServerNotAvailable, "could not find %s in PATH", AdbExecutableName)
+			return nil, fmt.Errorf("%w: could not find %s in PATH", wire.ErrServerNotAvailable, AdbExecutableName)
 		}
 		config.PathToAdb = path
 	}
 	if err := config.fs.IsExecutableFile(config.PathToAdb); err != nil {
-		return nil, errors.WrapErrorf(err, errors.ServerNotAvailable, "invalid adb executable: %s", config.PathToAdb)
+		return nil, fmt.Errorf("%w: invalid adb executable: %s, err: %w", wire.ErrServerNotAvailable, config.PathToAdb, err)
 	}
 
 	return &realServer{
@@ -91,12 +87,12 @@ func newServer(config ServerConfig) (server, error) {
 
 // Dial tries to connect to the server. If the first attempt fails, tries starting the server before
 // retrying. If the second attempt fails, returns the error.
-func (s *realServer) Dial() (*wire.Conn, error) {
+func (s *realServer) Dial() (wire.IConn, error) {
 	conn, err := s.config.Dial(s.address)
 	if err != nil {
 		// Attempt to start the server and try again.
 		if err = s.Start(); err != nil {
-			return nil, errors.WrapErrorf(err, errors.ServerNotAvailable, "error starting server for dial")
+			return nil, fmt.Errorf("%w: error starting server for dial, err:%w", wire.ErrServerNotAvailable, err)
 		}
 
 		conn, err = s.config.Dial(s.address)
@@ -111,7 +107,7 @@ func (s *realServer) Dial() (*wire.Conn, error) {
 func (s *realServer) Start() error {
 	output, err := s.config.fs.CmdCombinedOutput(s.config.PathToAdb /*"-L", fmt.Sprintf("tcp:%s", s.address),*/, "start-server")
 	outputStr := strings.TrimSpace(string(output))
-	return errors.WrapErrorf(err, errors.ServerNotAvailable, "error starting server: %s\noutput:\n%s", err, outputStr)
+	return fmt.Errorf("%w: error starting server: %w\noutput:\n%s", wire.ErrServerNotAvailable, err, outputStr)
 }
 
 // filesystem abstracts interactions with the local filesystem for testability.
@@ -134,7 +130,7 @@ var localFilesystem = &filesystem{
 			return err
 		}
 		if !info.Mode().IsRegular() {
-			return stderrors.New("not a regular file")
+			return errors.New("not a regular file")
 		}
 		return isExecutable(path)
 	},

@@ -10,8 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zach-klippenstein/goadb"
-	"github.com/zach-klippenstein/goadb/wire"
+	adb "github.com/prife/goadb"
 )
 
 var port = flag.Int("p", adb.AdbPort, "`port` the adb server is listening on")
@@ -62,7 +61,7 @@ func doCommand(cmd string) error {
 	}
 	defer conn.Close()
 
-	if err := wire.SendMessageString(conn, cmd); err != nil {
+	if err := conn.SendMessage([]byte(cmd)); err != nil {
 		return err
 	}
 
@@ -71,17 +70,14 @@ func doCommand(cmd string) error {
 		return err
 	}
 
-	var msg string
-	for err == nil {
-		msg, err = wire.ReadMessageString(conn)
+	for {
+		msg, err := conn.ReadMessage()
 		if err == nil {
 			fmt.Printf("%s> %s\n", status, msg)
 		}
+		if err != io.EOF {
+			return err
+		}
 	}
-
-	if err != io.EOF {
-		return err
-	}
-
 	return nil
 }
