@@ -2,8 +2,13 @@ package adb
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
+)
+
+var (
+	ErrSecurityException = errors.New("JavaSecurityException")
 )
 
 // ListPackages adb shell pm
@@ -47,6 +52,31 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 			l := bytes.TrimSpace(line[8:]) // cut `package:`
 			names = append(names, string(l))
 		}
+	}
+	return
+}
+
+func (d *Device) ClearPackageData(packageName string) (err error) {
+	args := []string{"clear", packageName}
+	resp, err := d.RunCommand("pm", args...)
+	if err != nil {
+		return err // always tcp error
+	}
+
+	// TODO: trim not visible chars
+	resp = bytes.TrimSpace(resp)
+	// err maybe nil, check response to determin error
+	if bytes.Equal(resp, []byte("Success")) {
+		return nil
+	} else if len(resp) == 0 {
+		return nil
+	}
+
+	err = errors.New(string(resp))
+	if bytes.Contains(resp, []byte("does not have permission android.permission.CLEAR_APP_USER_DATA to clear data of package")) {
+		// https://blog.csdn.net/shandong_chu/article/details/105144785
+		// 关闭开发者选项中“权限监控”可消除此错误
+		return fmt.Errorf("%w: %w", ErrSecurityException, err)
 	}
 	return
 }
