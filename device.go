@@ -122,14 +122,14 @@ func (c *Device) RunShellCommand(cmd string, args ...string) (fn net.Conn, err e
 	return conn.(*wire.Conn), wrapClientError(err, c, "RunCommand")
 }
 
-func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
+func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
 	reader, err := c.RunShellCommand(cmd, args...)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer reader.Close()
 	resp, err := io.ReadAll(reader)
-	return string(resp), err
+	return resp, err
 }
 
 // Forward create a tcp connection to remote addr in android device
