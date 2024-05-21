@@ -3,7 +3,9 @@ package adb
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,7 +101,7 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 // Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
 // This method quotes the arguments for you, and will return an error if any of them
 // contain double quotes.
-func (c *Device) RunShellCommand(cmd string, args ...string) (fn io.ReadCloser, err error) {
+func (c *Device) RunShellCommand(cmd string, args ...string) (fn net.Conn, err error) {
 	cmd, err = prepareCommandLine(cmd, args...)
 	if err != nil {
 		return nil, wrapClientError(err, c, "RunCommand")
@@ -135,6 +137,43 @@ func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
 	defer reader.Close()
 	resp, err := io.ReadAll(reader)
 	return string(resp), err
+}
+
+// Forward create a tcp connection to remote addr in android device
+// forward [--no-rebind] LOCAL REMOTE
+// forward socket connection using:
+//
+//	tcp:<port> (<local> may be "tcp:0" to pick any open port)
+//	localabstract:<unix domain socket name>
+//	localreserved:<unix domain socket name>
+//	localfilesystem:<unix domain socket name>
+//	dev:<character device name>
+//	jdwp:<process pid> (remote only)
+//	vsock:<CID>:<port> (remote only)
+//	acceptfd:<fd> (listen only)
+func (c *Device) ForwardPort(port int) (net.Conn, error) {
+	return c.Forward("tcp:" + strconv.Itoa(port))
+}
+
+func (c *Device) ForwardAbstract(name string) (net.Conn, error) {
+	return c.Forward("localabstract:" + name)
+}
+
+func (c *Device) Forward(addr string) (net.Conn, error) {
+	conn, err := c.dialDevice()
+	if err != nil {
+		return nil, wrapClientError(err, c, "forward")
+	}
+	if err = conn.SendMessage([]byte(addr)); err != nil {
+		conn.Close()
+		return nil, wrapClientError(err, c, "forward")
+	}
+	if _, err = conn.ReadStatus(addr); err != nil {
+		conn.Close()
+		return nil, wrapClientError(err, c, "forward")
+	}
+
+	return conn.(*wire.Conn), wrapClientError(err, c, "forward")
 }
 
 // Remount, from the official adb command’s docs:
