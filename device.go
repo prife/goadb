@@ -81,24 +81,19 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 	return nil, wrapClientError(err, c, "DeviceInfo")
 }
 
-/*
-RunCommand runs the specified commands on a shell on the device.
-
-From the Android docs:
-
-	Run 'command arg1 arg2 ...' in a shell on the device, and return
-	its output and error streams. Note that arguments must be separated
-	by spaces. If an argument contains a space, it must be quoted with
-	double-quotes. Arguments cannot contain double quotes or things
-	will go very wrong.
-
-	Note that this is the non-interactive version of "adb shell"
-
-Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
-
-This method quotes the arguments for you, and will return an error if any of them
-contain double quotes.
-*/
+// RunCommand runs the specified commands on a shell on the device.
+// From the Android docs:
+//
+//	Run 'command arg1 arg2 ...' in a shell on the device, and return
+//	its output and error streams. Note that arguments must be separated
+//	by spaces. If an argument contains a space, it must be quoted with
+//	double-quotes. Arguments cannot contain double quotes or things
+//	will go very wrong.
+//	Note that this is the non-interactive version of "adb shell"
+//
+// Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
+// This method quotes the arguments for you, and will return an error if any of them
+// contain double quotes.
 func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
 	cmd, err := prepareCommandLine(cmd, args...)
 	if err != nil {
@@ -127,17 +122,15 @@ func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
 	return string(resp), wrapClientError(err, c, "RunCommand")
 }
 
-/*
-Remount, from the official adb command’s docs:
-
-	Ask adbd to remount the device's filesystem in read-write mode,
-	instead of read-only. This is usually necessary before performing
-	an "adb sync" or "adb push" request.
-	This request may not succeed on certain builds which do not allow
-	that.
-
-Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
-*/
+// Remount, from the official adb command’s docs:
+//
+//	Ask adbd to remount the device's filesystem in read-write mode,
+//	instead of read-only. This is usually necessary before performing
+//	an "adb sync" or "adb push" request.
+//	This request may not succeed on certain builds which do not allow
+//	that.
+//
+// Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
 func (c *Device) Remount() (string, error) {
 	conn, err := c.dialDevice()
 	if err != nil {
