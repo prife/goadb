@@ -30,13 +30,6 @@ func (c *Device) String() string {
 	return c.descriptor.String()
 }
 
-// get-product is documented, but not implemented, in the server.
-// TODO(z): Make product exported if get-product is ever implemented in adb.
-func (c *Device) product() (string, error) {
-	attr, err := c.getAttribute("get-product")
-	return attr, wrapClientError(err, c, "Product")
-}
-
 func (c *Device) Serial() (string, error) {
 	attr, err := c.getAttribute("get-serialno")
 	return attr, wrapClientError(err, c, "Serial")
