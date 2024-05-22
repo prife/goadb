@@ -81,57 +81,6 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 	return nil, wrapClientError(err, c, "DeviceInfo")
 }
 
-// RunShellCommand runs the specified commands on a shell on the device.
-// From the Android docs:
-//
-//	Run 'command arg1 arg2 ...' in a shell on the device, and return
-//	its output and error streams. Note that arguments must be separated
-//	by spaces. If an argument contains a space, it must be quoted with
-//	double-quotes. Arguments cannot contain double quotes or things
-//	will go very wrong.
-//	Note that this is the non-interactive version of "adb shell"
-//
-// Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
-// This method quotes the arguments for you, and will return an error if any of them
-// contain double quotes.
-func (c *Device) RunShellCommand(cmd string, args ...string) (fn net.Conn, err error) {
-	cmd, err = prepareCommandLine(cmd, args...)
-	if err != nil {
-		return nil, wrapClientError(err, c, "RunCommand")
-	}
-
-	conn, err := c.dialDevice()
-	if err != nil {
-		return nil, wrapClientError(err, c, "RunCommand")
-	}
-
-	req := fmt.Sprintf("shell:%s", cmd)
-
-	// Shell responses are special, they don't include a length header.
-	// We read until the stream is closed.
-	// So, we can't use conn.RoundTripSingleResponse.
-	if err = conn.SendMessage([]byte(req)); err != nil {
-		conn.Close()
-		return nil, wrapClientError(err, c, "RunCommand")
-	}
-	if _, err = conn.ReadStatus(req); err != nil {
-		conn.Close()
-		return nil, wrapClientError(err, c, "RunCommand")
-	}
-
-	return conn.(*wire.Conn), wrapClientError(err, c, "RunCommand")
-}
-
-func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
-	reader, err := c.RunShellCommand(cmd, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-	resp, err := io.ReadAll(reader)
-	return resp, err
-}
-
 // Forward create a tcp connection to remote addr in android device
 // forward [--no-rebind] LOCAL REMOTE
 // forward socket connection using:

@@ -49,13 +49,17 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 	for _, line := range lines {
 		pos := bytes.Index(line, []byte("package:"))
 		if pos >= 0 {
-			l := bytes.TrimSpace(line[8:]) // cut `package:`
+			l := bytes.TrimSpace(line[pos+8:]) // cut `package:`
 			names = append(names, string(l))
 		}
 	}
 	return
 }
 
+// ClearPackageData clear app
+// Android 5.1
+// shell:pm clear <package>
+// 00000000  53 75 63 63 65 73 73 0d  0a                       |Success..|
 func (d *Device) ClearPackageData(packageName string) (err error) {
 	args := []string{"clear", packageName}
 	resp, err := d.RunCommand("pm", args...)
@@ -63,12 +67,10 @@ func (d *Device) ClearPackageData(packageName string) (err error) {
 		return err // always tcp error
 	}
 
-	// TODO: trim not visible chars
+	// TODO: for shell_v2, should trim prefix and suffix chars
 	resp = bytes.TrimSpace(resp)
 	// err maybe nil, check response to determin error
 	if bytes.Equal(resp, []byte("Success")) {
-		return nil
-	} else if len(resp) == 0 {
 		return nil
 	}
 
