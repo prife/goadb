@@ -61,13 +61,11 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 // shell:pm clear <package>
 // 00000000  53 75 63 63 65 73 73 0d  0a                       |Success..|
 func (d *Device) ClearPackageData(packageName string) (err error) {
-	args := []string{"clear", packageName}
-	resp, err := d.RunCommand("pm", args...)
+	resp, err := d.RunCommand("pm", "clear", packageName)
 	if err != nil {
 		return err // always tcp error
 	}
 
-	// TODO: for shell_v2, should trim prefix and suffix chars
 	resp = bytes.TrimSpace(resp)
 	// err maybe nil, check response to determin error
 	if bytes.Equal(resp, []byte("Success")) {

@@ -1,7 +1,6 @@
 package adb
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -83,16 +82,27 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 }
 
 func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
-	reader, err := c.RunShellCommand(false, cmd, args...)
+	return c.RunCommandToEnd(false, cmd, args...)
+}
+
+func (c *Device) RunCommandToEnd(v2 bool, cmd string, args ...string) (resp []byte, err error) {
+	// run shell_v2
+	reader, err := c.RunShellCommand(true, cmd, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer reader.Close()
-	resp, err := io.ReadAll(reader)
+
+	resp, err = io.ReadAll(reader)
 	if err != nil {
-		// TODO: for shell_v2, should trim prefix and suffix chars
-		resp = bytes.TrimSpace(resp)
+		return
 	}
 	fmt.Println(hex.Dump(resp))
-	return resp, err
+	if v2 {
+		// trim prefix and suffix chars, see comments above
+		if len(resp) >= (5 + 6) {
+			resp = resp[5 : len(resp)-6]
+		}
+	}
+	return
 }
