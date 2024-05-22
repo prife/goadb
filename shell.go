@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -88,6 +89,10 @@ func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
 	}
 	defer reader.Close()
 	resp, err := io.ReadAll(reader)
+	if err != nil {
+		// TODO: for shell_v2, should trim prefix and suffix chars
+		resp = bytes.TrimSpace(resp)
+	}
 	fmt.Println(hex.Dump(resp))
 	return resp, err
 }
