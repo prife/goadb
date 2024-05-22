@@ -1,7 +1,6 @@
 package adb
 
 import (
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -86,8 +85,7 @@ func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
 }
 
 func (c *Device) RunCommandToEnd(v2 bool, cmd string, args ...string) (resp []byte, err error) {
-	// run shell_v2
-	reader, err := c.RunShellCommand(true, cmd, args...)
+	reader, err := c.RunShellCommand(v2, cmd, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +95,9 @@ func (c *Device) RunCommandToEnd(v2 bool, cmd string, args ...string) (resp []by
 	if err != nil {
 		return
 	}
-	fmt.Println(hex.Dump(resp))
+	// fmt.Println(hex.Dump(resp))
+	// fmt.Println("----------------")
+	// fmt.Printf("%s", resp)
 	if v2 {
 		// trim prefix and suffix chars, see comments above
 		if len(resp) >= (5 + 6) {

@@ -70,7 +70,8 @@ type Process struct {
 }
 
 var (
-	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+)$`)
+	//                                   root    845       2      0     0     0     0     S    [irq/227-q6v5 wdog]`
+	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(.*)$`)
 )
 
 func unpackProccess(resp []byte) (names []Process) {
@@ -91,14 +92,14 @@ func unpackProccess(resp []byte) (names []Process) {
 
 // ListProcesses run adb shell ps
 func (d *Device) ListProcesses() (names []Process, err error) {
-	// first try adb shell,v2:ps, to detect wether support ps -A or not
-	resp, err := d.RunCommandToEnd(true, "ps")
+	// detect wether support ps -A or not
+	resp, err := d.RunCommandToEnd(false, "ps", "-A")
 	if err != nil {
 		return
 	}
 
 	lines := bytes.Split(resp, []byte("\n"))
-	// running processes of Android must > 10, if the number < 10 means 'shell_v2' is not supported
+	// running processes of Android must > 10, if the number < 10 means 'ps -A' is not supported
 	if len(lines) < 10 {
 		// <= Android 7.0
 		resp, err = d.RunCommandToEnd(false, "ps")
