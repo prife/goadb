@@ -27,6 +27,13 @@ func TestDevice_ForceStopApp(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestDevice_StartApp(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(adb.AnyDevice())
+	_, err := d.StartApp("com.android.settings")
+	assert.Nil(t, err)
+}
+
 func TestUnpackActivity(t *testing.T) {
 	str := `
 topResumedActivity=ActivityRecord{18aea91 u0 com.android.settings/.Settings t84}

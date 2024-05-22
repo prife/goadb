@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -52,8 +53,7 @@ func UnpackActivity(resp []byte) (l []Activity) {
 // references:
 // https://stackoverflow.com/questions/13193592/getting-the-name-of-the-current-activity-via-adb
 func (d *Device) GetCurrentActivity() (app []Activity, err error) {
-	args := []string{"activity", "activities", "|", "grep", "ResumedActivity"}
-	resp, err := d.RunCommand("dumpsys", args...)
+	resp, err := d.RunCommand("dumpsys", "activity", "activities", "|", "grep", "ResumedActivity")
 	if err != nil {
 		return // tcp error
 	}
@@ -68,11 +68,50 @@ func (d *Device) GetCurrentActivity() (app []Activity, err error) {
 	return
 }
 
+// $ adb shell monkey -p com.android.settings 1
+// Android 5.1
+// Events injected: 1
+// ## Network stats: elapsed time=50ms (0ms mobile, 0ms wifi, 50ms not connected)
+//
+// Android 14
+// bash arg: -p
+// bash arg: com.android.settings
+// bash arg: 1
+// args: [-p, com.android.settings, 1]
+// arg: "-p"
+// arg: "com.android.settings"
+// arg: "1"
+// data="com.android.settings"
+// Events injected: 1
+// ## Network stats: elapsed time=56ms (0ms mobile, 0ms wifi, 56ms not connected)
+//
+// $ adb shell monkey -p com.android.settings1111 1
+// ...
+// ** No activities found to run, monkey aborted.
+
+// StartApp launch app by it's package name
+func (d *Device) StartApp(packageName string) (resp []byte, err error) {
+	// https://stackoverflow.com/questions/4567904/how-to-start-an-application-using-android-adb-tools
+	resp, err = d.RunCommand("monkey", "-p", packageName, "1")
+	if err != nil {
+		return // tcp error
+	}
+
+	// err maybe nil, check response to determin error
+	if bytes.Contains(resp, []byte("Events injected: ")) {
+		return
+	} else if bytes.Contains(resp, []byte("No activities found to run, monkey aborted")) {
+		err = errors.New("no activities found")
+		return
+	}
+	err = errors.New("unrecgnized error")
+	return
+}
+
 // ForceStopPackage force-stop app
 // Android 14: don't need permission
 func (d *Device) ForceStopApp(packageName string) (err error) {
-	args := []string{"force-stop", packageName}
-	resp, err := d.RunCommand("am", args...)
+	resp, err := d.RunCommand("am", "force-stop", packageName)
 	if err != nil {
 		return err // tcp error
 	}
