@@ -1,7 +1,9 @@
 package adb
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -61,6 +63,11 @@ import (
 // root      2     0     0      0     ffffffff 00000000 S kthreadd
 // root      3     2     0      0     ffffffff 00000000 S ksoftirqd/0
 // root      5     2     0      0     ffffffff 00000000 S kworker/0:0H
+
+var (
+	ErrNotPermitted  = errors.New("NotPermitted")
+	ErrNoSuchProcess = errors.New("NoSuchProcess")
+)
 
 type Process struct {
 	Uid  string
@@ -173,6 +180,13 @@ func (d *Device) PidGroupOf(name string, match bool) (list map[Process][]Process
 	})
 }
 
+// Android 14
+// $ kill 584
+// /system/bin/sh: kill: 584: Operation not permitted
+//
+// OP5929L1:/ $ kill 12006
+// /system/bin/sh: kill: 12006: No such process
+
 // KillPidGroup kill process and it's children processes
 func (d *Device) KillPids(list []int, signal int) (err error) {
 	args := make([]string, len(list))
@@ -184,9 +198,14 @@ func (d *Device) KillPids(list []int, signal int) (err error) {
 	}
 
 	resp, err := d.RunCommandToEnd(false, "kill", args...)
-
-	// TODO:
-	_ = resp
+	if len(resp) > 0 {
+		err = errors.New(string(resp))
+		if bytes.Contains(resp, []byte("Operation not permitted")) {
+			err = fmt.Errorf("%w: %w", ErrNotPermitted, err)
+		} else if bytes.Contains(resp, []byte("No such process")) {
+			err = fmt.Errorf("%w: %w", ErrNoSuchProcess, err)
+		}
+	}
 	return
 }
 
