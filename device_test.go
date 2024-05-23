@@ -73,7 +73,7 @@ func TestRunCommandNoArgs(t *testing.T) {
 	assert.Equal(t, "host:transport-any", s.Requests[0])
 	assert.Equal(t, "shell:cmd", s.Requests[1])
 	assert.NoError(t, err)
-	assert.Equal(t, "output", v)
+	assert.Equal(t, "output", string(v))
 }
 
 func TestPrepareCommandLineNoArgs(t *testing.T) {

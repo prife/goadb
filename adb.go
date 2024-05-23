@@ -68,6 +68,10 @@ func (c *Adb) ServerVersion() (int, error) {
 	return version, nil
 }
 
+func (c *Adb) HostFeatures() ([]byte, error) {
+	return roundTripSingleResponse(c.server, "host:host-features")
+}
+
 // KillServer tells the server to quit immediately.
 // Corresponds to the command:
 //

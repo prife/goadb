@@ -3,7 +3,9 @@ package adb
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,13 +30,6 @@ func (c *Device) String() string {
 	return c.descriptor.String()
 }
 
-// get-product is documented, but not implemented, in the server.
-// TODO(z): Make product exported if get-product is ever implemented in adb.
-func (c *Device) product() (string, error) {
-	attr, err := c.getAttribute("get-product")
-	return attr, wrapClientError(err, c, "Product")
-}
-
 func (c *Device) Serial() (string, error) {
 	attr, err := c.getAttribute("get-serialno")
 	return attr, wrapClientError(err, c, "Serial")
@@ -42,6 +37,11 @@ func (c *Device) Serial() (string, error) {
 
 func (c *Device) DevicePath() (string, error) {
 	attr, err := c.getAttribute("get-devpath")
+	return attr, wrapClientError(err, c, "DevicePath")
+}
+
+func (c *Device) DeviceFeatures() (string, error) {
+	attr, err := c.getAttribute("features")
 	return attr, wrapClientError(err, c, "DevicePath")
 }
 
@@ -81,45 +81,41 @@ func (c *Device) DeviceInfo() (*DeviceInfo, error) {
 	return nil, wrapClientError(err, c, "DeviceInfo")
 }
 
-// RunCommand runs the specified commands on a shell on the device.
-// From the Android docs:
+// Forward create a tcp connection to remote addr in android device
+// forward [--no-rebind] LOCAL REMOTE
+// forward socket connection using:
 //
-//	Run 'command arg1 arg2 ...' in a shell on the device, and return
-//	its output and error streams. Note that arguments must be separated
-//	by spaces. If an argument contains a space, it must be quoted with
-//	double-quotes. Arguments cannot contain double quotes or things
-//	will go very wrong.
-//	Note that this is the non-interactive version of "adb shell"
-//
-// Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
-// This method quotes the arguments for you, and will return an error if any of them
-// contain double quotes.
-func (c *Device) RunCommand(cmd string, args ...string) (string, error) {
-	cmd, err := prepareCommandLine(cmd, args...)
-	if err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
-	}
+//	tcp:<port> (<local> may be "tcp:0" to pick any open port)
+//	localabstract:<unix domain socket name>
+//	localreserved:<unix domain socket name>
+//	localfilesystem:<unix domain socket name>
+//	dev:<character device name>
+//	jdwp:<process pid> (remote only)
+//	vsock:<CID>:<port> (remote only)
+//	acceptfd:<fd> (listen only)
+func (c *Device) ForwardPort(port int) (net.Conn, error) {
+	return c.Forward("tcp:" + strconv.Itoa(port))
+}
 
+func (c *Device) ForwardAbstract(name string) (net.Conn, error) {
+	return c.Forward("localabstract:" + name)
+}
+
+func (c *Device) Forward(addr string) (net.Conn, error) {
 	conn, err := c.dialDevice()
 	if err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+		return nil, wrapClientError(err, c, "forward")
 	}
-	defer conn.Close()
-
-	req := fmt.Sprintf("shell:%s", cmd)
-
-	// Shell responses are special, they don't include a length header.
-	// We read until the stream is closed.
-	// So, we can't use conn.RoundTripSingleResponse.
-	if err = conn.SendMessage([]byte(req)); err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+	if err = conn.SendMessage([]byte(addr)); err != nil {
+		conn.Close()
+		return nil, wrapClientError(err, c, "forward")
 	}
-	if _, err = conn.ReadStatus(req); err != nil {
-		return "", wrapClientError(err, c, "RunCommand")
+	if _, err = conn.ReadStatus(addr); err != nil {
+		conn.Close()
+		return nil, wrapClientError(err, c, "forward")
 	}
 
-	resp, err := conn.ReadUntilEof()
-	return string(resp), wrapClientError(err, c, "RunCommand")
+	return conn.(*wire.Conn), wrapClientError(err, c, "forward")
 }
 
 // Remount, from the official adb command’s docs:
