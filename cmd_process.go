@@ -1,7 +1,6 @@
 package adb
 
 import (
-	"bytes"
 	"errors"
 	"regexp"
 	"strconv"
@@ -70,8 +69,9 @@ type Process struct {
 }
 
 var (
-	//                                   root    845       2      0     0     0     0     S    [irq/227-q6v5 wdog]`
-	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(.*)$`)
+	// android 8+                        root    845       2      0     0     0     0     S    [irq/227-q6v5 wdog]
+	// android 5.1                       root    845       2      0     0     0     0     S    kworker/2:0H^M
+	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+\s*\S+)\s*$`)
 )
 
 func unpackProccess(resp []byte) (names []Process) {
@@ -98,10 +98,11 @@ func (d *Device) ListProcesses() (names []Process, err error) {
 		return
 	}
 
-	lines := bytes.Split(resp, []byte("\n"))
-	// running processes of Android must > 10, if the number < 10 means 'ps -A' is not supported
-	if len(lines) < 10 {
-		// <= Android 7.0
+	// Android 5.1: USER     PID   PPID  VSIZE  RSS     WCHAN    PC          NAM
+	// Android 7.1: bad pid '-A'
+	// if received too few bytes, means 'ps -A' is not supported
+	if len(resp) < 256 {
+		// <= Android 7.x
 		resp, err = d.RunCommandToEnd(false, "ps")
 		if err != nil {
 			return
