@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +29,8 @@ var (
 	shellCommandArg = shellCommand.Arg("command",
 		"Command to run on device.").
 		Strings()
-
+	psCommand = kingpin.Command("ps",
+		"List processes.")
 	devicesCommand = kingpin.Command("devices",
 		"List devices.")
 	devicesLongFlag = devicesCommand.Flag("long",
@@ -83,6 +85,8 @@ func main() {
 		exitCode = listDevices(*devicesLongFlag)
 	case "shell":
 		exitCode = runShellCommand(*shellCommandArg, parseDevice())
+	case "ps":
+		exitCode = ps(parseDevice())
 	case "pull":
 		exitCode = pull(*pullProgressFlag, *pullRemoteArg, *pullLocalArg, parseDevice())
 	case "push":
@@ -149,13 +153,30 @@ func runShellCommand(commandAndArgs []string, device adb.DeviceDescriptor) int {
 	}
 
 	client := client.Device(device)
-	reader, err := client.RunShellCommand(command, args...)
+	reader, err := client.RunCommandToEnd(false, command, args...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
 	}
-	defer reader.Close()
-	io.Copy(os.Stdout, reader)
+	_ = reader
+	fmt.Printf("%s\n", reader)
+	fmt.Println("--------------")
+	fmt.Println(hex.Dump(reader))
+	// defer reader.Close()
+	// io.Copy(os.Stdout, reader)
+	return 0
+}
+
+func ps(device adb.DeviceDescriptor) int {
+	client := client.Device(device)
+	list, err := client.ListProcesses(nil)
+	if err != nil {
+		panic(err)
+		return 1
+	}
+	for _, name := range list {
+		fmt.Printf("%-12s%6d%49s%s\n", name.Uid, name.Pid, " ", name.Name)
+	}
 	return 0
 }
 

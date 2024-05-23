@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // Android 14: adb shell,v2:ps == adb shell ps -A
@@ -68,13 +69,15 @@ type Process struct {
 	Name string
 }
 
+type ProcessFilter func(p Process) bool
+
 var (
 	// android 8+                        root    845       2      0     0     0     0     S    [irq/227-q6v5 wdog]
 	// android 5.1                       root    845       2      0     0     0     0     S    kworker/2:0H^M
 	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+\s*\S+)\s*$`)
 )
 
-func unpackProccess(resp []byte) (names []Process) {
+func unpackProccess(resp []byte, filter ProcessFilter) (names []Process) {
 	matches := psRegrex.FindAllSubmatch(resp, -1)
 	for _, match := range matches {
 		pid, err := strconv.Atoi(string(match[2]))
@@ -85,13 +88,17 @@ func unpackProccess(resp []byte) (names []Process) {
 		if err != nil {
 			continue
 		}
-		names = append(names, Process{Uid: string(match[1]), Pid: pid, PPid: ppid, Name: string(match[4])})
+
+		p := Process{Uid: string(match[1]), Pid: pid, PPid: ppid, Name: string(match[4])}
+		if filter == nil || filter(p) {
+			names = append(names, p)
+		}
 	}
 	return
 }
 
 // ListProcesses run adb shell ps
-func (d *Device) ListProcesses() (names []Process, err error) {
+func (d *Device) ListProcesses(filter ProcessFilter) (names []Process, err error) {
 	// detect wether support ps -A or not
 	resp, err := d.RunCommandToEnd(false, "ps", "-A")
 	if err != nil {
@@ -109,18 +116,96 @@ func (d *Device) ListProcesses() (names []Process, err error) {
 		}
 	}
 
-	names = unpackProccess(resp)
+	names = unpackProccess(resp, filter)
 	if len(names) == 0 {
 		return nil, errors.New(string(resp))
 	}
 	return
 }
 
-func (d *Device) KillPid(pid int) (err error) {
+func (d *Device) ListProcessGroup(filter ProcessFilter) (list map[Process][]Process, err error) {
+	l, err := d.ListProcesses(nil)
+	if err != nil {
+		return
+	}
+
+	list = make(map[Process][]Process)
+	for _, p := range l {
+		if filter(p) {
+			list[p] = make([]Process, 0)
+		}
+	}
+
+	for _, p := range l {
+		for key, value := range list {
+			if p.PPid == key.Pid {
+				list[key] = append(value, p)
+			}
+		}
+	}
+	return
+}
+
+// Android 7.x
+// PD1619:/ $ pidof --help
+// usage: pidof [-s] [-o omitpid[,omitpid...]] [NAME]...
+// Print the PIDs of all processes with the given names.
+// -s      single shot, only return one pid.
+// -o      omit PID(s)
+//
+// PD1619:/ $ pidof 555555
+// 1|PD1619:/ $
+//
+// Android 5.1
+// shell@A33:/ $ pidof 55555
+// system/bin/sh: pidof: not found
+
+// FindPids find pid
+func (d *Device) PidOf(name string, match bool) (list []Process, err error) {
+	return d.ListProcesses(func(p Process) bool {
+		return (match && p.Name == name) || (!match && strings.Contains(p.Name, name))
+	})
+}
+
+func (d *Device) PidGroupOf(name string, match bool) (list map[Process][]Process, err error) {
+	return d.ListProcessGroup(func(p Process) bool {
+		return (match && p.Name == name) || (!match && strings.Contains(p.Name, name))
+	})
+}
+
+// KillPidGroup kill process and it's children processes
+func (d *Device) KillPids(list []int, signal int) (err error) {
+	args := make([]string, len(list))
+	if signal > 0 {
+		args = append(args, "-"+strconv.Itoa(signal))
+	}
+	for _, pid := range list {
+		args = append(args, strconv.Itoa(pid))
+	}
+
+	resp, err := d.RunCommandToEnd(false, "kill", args...)
+
+	// TODO:
+	_ = resp
 	return
 }
 
 // KillPidGroup kill process and it's children processes
-func (d *Device) KillPidGroup(pid int) (killList []Process, err error) {
+func (d *Device) KillPidGroupOf(name string, match bool) (killed map[Process][]Process, err error) {
+	killed, err = d.ListProcessGroup(func(p Process) bool {
+		return (match && p.Name == name) || (!match && strings.Contains(p.Name, name))
+	})
+	if err != nil {
+		return
+	}
+
+	var pids []int
+	for p, pl := range killed {
+		pids = append(pids, p.Pid)
+		for _, child := range pl {
+			pids = append(pids, child.Pid)
+		}
+	}
+	err = d.KillPids(pids, 9)
 	return
 }
