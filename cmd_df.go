@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -188,6 +189,31 @@ func unpackDfV2(resp []byte) (names []DfEntry) {
 			MountedOn:  string(match[6]),
 		}
 		names = append(names, d)
+	}
+	return
+}
+
+func (d *Device) DF() (list []DfEntry, err error) {
+	// detect wether support df -h or not
+	resp, err := d.RunCommandToEnd(false, "df", "-h")
+	if err != nil {
+		return
+	}
+
+	// if received too few bytes, means 'df -h' is not supported
+	if len(resp) < 128 {
+		// <= Android 6.x
+		resp, err = d.RunCommandToEnd(false, "df")
+		if err != nil {
+			return
+		}
+		list = unpackDfV1(resp)
+	} else {
+		list = unpackDfV2(resp)
+	}
+
+	if len(list) == 0 {
+		return nil, errors.New(string(resp))
 	}
 	return
 }
