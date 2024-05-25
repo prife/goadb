@@ -193,6 +193,11 @@ func unpackDfV2(resp []byte) (names []DfEntry) {
 	return
 }
 
+// DF adb shell df
+// After Android 6+, /storage/emulated and /data are on the same partation, they have same information
+// Android 5.x, they may be not same
+// please see comments in cmd_df_test.go
+// in general, check '/data' in MountedOn, which is supported on Android 5.x ~ Android14
 func (d *Device) DF() (list []DfEntry, err error) {
 	// detect wether support df -h or not
 	resp, err := d.RunCommandToEnd(false, "df", "-h")
