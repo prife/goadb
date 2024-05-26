@@ -13,8 +13,7 @@ import (
 // It's worth noting that the idle time may be greater than the actual uptime because each core of a multi-core processor calculates idle time.
 // For example, a dual-core processor being idle for 1 second will count as 2 seconds of idle time.
 func parseUptime(resp []byte) (uptime float64, err error) {
-	resp = bytes.TrimSpace(resp)
-	list := bytes.Split(resp, []byte(" "))
+	list := bytes.Fields(resp)
 	if len(list) != 2 {
 		err = fmt.Errorf("invalid uptime:%s", resp)
 		return
