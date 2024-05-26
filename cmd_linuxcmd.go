@@ -3,7 +3,9 @@ package adb
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strconv"
+	"time"
 )
 
 // The `/proc/uptime` file contains two values that represent the system's uptime and idle time (in seconds) since it started.
@@ -28,4 +30,48 @@ func (d *Device) Uptime() (uptime float64, err error) {
 		return
 	}
 	return parseUptime(resp)
+}
+
+type LinuxVersion struct {
+	Version string
+	Built   time.Time
+	Raw     []byte
+}
+
+var (
+	kernelRegrex = regexp.MustCompile(`\d+\.\d+\.\d+`)
+)
+
+func parseUname(resp []byte) (info LinuxVersion, err error) {
+	version := kernelRegrex.Find(resp)
+	if version == nil {
+		err = fmt.Errorf("version not found")
+		return
+	}
+
+	sep := []byte("SMP PREEMPT")
+	sepIndex := bytes.Index(resp, sep)
+	if sepIndex < 0 {
+		err = fmt.Errorf("%s not found", sep)
+		return
+	}
+
+	const layout = "Mon Jan 2 15:04:05 MST 2006"
+	time, err := time.Parse(layout, string(bytes.TrimSpace(resp[sepIndex+len(sep):])))
+	if err != nil {
+		return
+	}
+	info.Version = string(version)
+	info.Built = time
+	info.Raw = resp
+	return
+}
+
+func (d *Device) Uname() (version LinuxVersion, err error) {
+	// detect wether support df -h or not
+	resp, err := d.RunCommandToEnd(false, "cat", "/proc/version")
+	if err != nil {
+		return
+	}
+	return parseUname(resp)
 }
