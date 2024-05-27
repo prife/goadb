@@ -125,3 +125,36 @@ func TestDevice_GetProperites(t *testing.T) {
 		fmt.Printf("[%s]: [%s]\n", k, v)
 	}
 }
+
+func Test_parseIpAddressWlan0(t *testing.T) {
+	// shell@A33:/ $
+	output := []byte(`
+29: wlan0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc mq state DOWN qlen 1000
+link/ether 2c:5b:b8:e5:d6:12 brd ff:ff:ff:ff:ff:ff
+`)
+	m, _ := parseIpAddressWlan0(output)
+	assert.Equal(t, m.LinkAddr, "2c:5b:b8:e5:d6:12")
+	assert.True(t, m.Ipv4 == nil)
+	assert.True(t, m.Ipv6 == nil)
+
+	// Android 14
+	output = []byte(`
+	24: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc htb state UP group default qlen 3000
+	link/ether 62:7b:0f:61:b2:d6 brd ff:ff:ff:ff:ff:ff
+	inet 192.168.31.222/24 brd 192.168.31.255 scope global wlan0
+		valid_lft forever preferred_lft forever
+	inet6 fe80::607b:fff:fe61:b2d6/64 scope link
+		valid_lft forever preferred_lft forever`)
+	m, _ = parseIpAddressWlan0(output)
+	assert.Equal(t, m.LinkAddr, "62:7b:0f:61:b2:d6")
+	assert.Equal(t, m.Ipv4, []byte("192.168.31.222/24"))
+	assert.Equal(t, m.Ipv6, []byte("fe80::607b:fff:fe61:b2d6/64"))
+}
+
+func TestDevice_GetWlanInfo(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(AnyDevice())
+	info, err := d.GetWlanInfo()
+	assert.Nil(t, err)
+	fmt.Println(info)
+}

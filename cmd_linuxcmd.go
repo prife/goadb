@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -144,5 +145,64 @@ func (d *Device) GetProperites(filter PropertiesFilter) (properties map[string]s
 	if len(properties) == 0 {
 		err = fmt.Errorf("not found any properties")
 	}
+	return
+}
+
+var (
+	etherRegex = regexp.MustCompile(`\s*link/ether\s+(\S+)`)
+	inetRegex  = regexp.MustCompile(`\s*(inet6?)\s+(\S+)`)
+)
+
+type EtherInfo struct {
+	Name     string
+	LinkAddr string // mac
+	Ipv4     []byte
+	Ipv6     []byte
+}
+
+func (e EtherInfo) String() string {
+	var a strings.Builder
+	a.Write([]byte(e.Name))
+	a.WriteString(" link/addr=" + e.LinkAddr)
+	if e.Ipv4 != nil {
+		a.WriteString(" inet=" + string(e.Ipv4))
+	}
+	if e.Ipv6 != nil {
+		a.WriteString(" inet6=" + string(e.Ipv6))
+	}
+	return a.String()
+}
+
+func parseIpAddressWlan0(resp []byte) (info EtherInfo, err error) {
+	match := etherRegex.FindSubmatch(resp)
+	if len(match) == 0 {
+		err = fmt.Errorf("no linkaddr found")
+		return
+	}
+	info.LinkAddr = string(match[1])
+
+	matches := inetRegex.FindAllSubmatch(resp, -1)
+	if len(matches) == 0 {
+		return
+	}
+	for _, match := range matches {
+		if string(match[1]) == "inet" {
+			info.Ipv4 = bytes.Clone(match[2])
+		} else if string(match[1]) == "inet6" {
+			info.Ipv6 = bytes.Clone(match[2])
+		}
+	}
+	return
+}
+
+// GetWlanInfo adb shell ip address show wlan0
+func (d *Device) GetWlanInfo() (info EtherInfo, err error) {
+	resp, err := d.RunCommand("ip address show wlan0")
+	if err != nil {
+		return
+	}
+
+	info, err = parseIpAddressWlan0(resp)
+	info.Name = "wlan0"
 	return
 }
