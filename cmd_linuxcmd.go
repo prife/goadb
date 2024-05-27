@@ -75,3 +75,74 @@ func (d *Device) Uname() (version LinuxVersion, err error) {
 	}
 	return parseUname(resp)
 }
+
+type GpuInfo struct {
+	Vendor        string
+	Model         string
+	OpenGLVersion string
+}
+
+var (
+	// "GLES: Qualcomm, Adreno (TM) 618, OpenGL ES 3.2 V@415.0 (GIT@663be55, I724753c5e3, 1573037262) (Date:11/06/19)"
+	// "GLES: ARM, Mali-G78, OpenGL ES 3.2 v1.r34p0-01eac0.a1b116bd871d46ef040e8feef9ed691e"
+	gpuRegrex = regexp.MustCompile(`GLES:\s*(\w+),\s*([^,]+),\s*(OpenGL ES [0-9.]+)`)
+)
+
+func parseGpu(resp []byte) (info GpuInfo, err error) {
+	match := gpuRegrex.FindSubmatch(resp)
+	if len(match) == 0 {
+		err = fmt.Errorf("can't found GLES: %s", resp)
+	}
+
+	info.Vendor = string(match[1])
+	info.Model = string(match[2])
+	info.OpenGLVersion = string(match[3])
+	return
+}
+
+func (d *Device) GetGpuAndOpenGL() (des GpuInfo, err error) {
+	glstr, err := d.RunCommand("dumpsys SurfaceFlinger | grep GLES")
+	if err != nil {
+		return
+	}
+
+	return parseGpu(glstr)
+}
+
+var (
+	devicePropertyRegex = regexp.MustCompile(`(?m)\[(\S+)\]:\s*\[(.*)\]\s*$`)
+	// devicePropertyRegex = regexp.MustCompile(`\[([\s\S]*?)\]: \[([\s\S]*?)\]\r?`)
+)
+
+type PropertiesFilter func(k, v string) bool
+
+func parseDeviceProperties(resp []byte, filter PropertiesFilter) map[string]string {
+	matches := devicePropertyRegex.FindAllSubmatch(resp, -1)
+	properties := make(map[string]string)
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+		key := string(match[1])
+		value := string(match[2])
+
+		if filter == nil || filter(key, value) {
+			properties[key] = value
+		}
+	}
+	return properties
+}
+
+// GetProperites adb shell getprop
+func (d *Device) GetProperites(filter PropertiesFilter) (properties map[string]string, err error) {
+	resp, err := d.RunCommand("getprop")
+	if err != nil {
+		return
+	}
+
+	properties = parseDeviceProperties(resp, filter)
+	if len(properties) == 0 {
+		err = fmt.Errorf("not found any properties")
+	}
+	return
+}

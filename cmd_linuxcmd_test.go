@@ -2,6 +2,7 @@ package adb
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,4 +66,62 @@ func TestDevice_Uname(t *testing.T) {
 	info, err := d.Uname()
 	assert.Nil(t, err)
 	fmt.Println(info)
+}
+
+func Test_parseGpu(t *testing.T) {
+	gpuStr := "GLES: Qualcomm, Adreno (TM) 618, OpenGL ES 3.2 V@415.0 (GIT@663be55, I724753c5e3, 1573037262) (Date:11/06/19)"
+	info, err := parseGpu([]byte(gpuStr))
+	assert.Nil(t, err)
+	assert.Equal(t, info, GpuInfo{
+		Vendor:        "Qualcomm",
+		Model:         "Adreno (TM) 618",
+		OpenGLVersion: "OpenGL ES 3.2",
+	})
+
+	gpuStr = "GLES: ARM, Mali-G78, OpenGL ES 3.2 v1.r34p0-01eac0.a1b116bd871d46ef040e8feef9ed691e"
+	info, err = parseGpu([]byte(gpuStr))
+	assert.Nil(t, err)
+	assert.Equal(t, info, GpuInfo{
+		Vendor:        "ARM",
+		Model:         "Mali-G78",
+		OpenGLVersion: "OpenGL ES 3.2",
+	})
+
+	gpuStr = `------------RE GLES------------
+GLES: Qualcomm, Adreno (TM) 750, OpenGL ES 3.2 V@0762.10 (GIT@1394a2c7a8, Id12349e41b, 1708672982) (Date:02/23/24)
+`
+	info, err = parseGpu([]byte(gpuStr))
+	assert.Nil(t, err)
+	assert.Equal(t, info, GpuInfo{
+		Vendor:        "Qualcomm",
+		Model:         "Adreno (TM) 750",
+		OpenGLVersion: "OpenGL ES 3.2",
+	})
+}
+
+func Test_parseDeviceProperties(t *testing.T) {
+	props := []byte(`
+[ro.vendor.build.date]: [Thu Apr 18 22:16:50 CST 2024]
+[ro.vendor.build.date.utc]: [1713449810]
+[ro.vendor.build.fingerprint]: [OnePlus/PJD110/OP5929L1:14/UKQ1.230924.001/U.17a89d1_3ff5_3ff4:user/release-keys]
+[ro.build.description]:    [msm8916_64-user 5.1.1 LMY47V eng.root.20161104.171401 dev-keys]
+`)
+
+	m := parseDeviceProperties(props, nil)
+	assert.Equal(t, len(m), 4)
+	for k, v := range m {
+		fmt.Printf("[%s]: [%s]\n", k, v)
+	}
+}
+
+func TestDevice_GetProperites(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(AnyDevice())
+	m, err := d.GetProperites(func(k, v string) bool {
+		return strings.HasPrefix(k, "ro.")
+	})
+	assert.Nil(t, err)
+	for k, v := range m {
+		fmt.Printf("[%s]: [%s]\n", k, v)
+	}
 }
