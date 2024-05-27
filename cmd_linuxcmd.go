@@ -111,44 +111,6 @@ func (d *Device) GetGpuAndOpenGL() (des GpuInfo, err error) {
 }
 
 var (
-	devicePropertyRegex = regexp.MustCompile(`(?m)\[(\S+)\]:\s*\[(.*)\]\s*$`)
-	// devicePropertyRegex = regexp.MustCompile(`\[([\s\S]*?)\]: \[([\s\S]*?)\]\r?`)
-)
-
-type PropertiesFilter func(k, v string) bool
-
-func parseDeviceProperties(resp []byte, filter PropertiesFilter) map[string]string {
-	matches := devicePropertyRegex.FindAllSubmatch(resp, -1)
-	properties := make(map[string]string)
-	for _, match := range matches {
-		if len(match) < 3 {
-			continue
-		}
-		key := string(match[1])
-		value := string(match[2])
-
-		if filter == nil || filter(key, value) {
-			properties[key] = value
-		}
-	}
-	return properties
-}
-
-// GetProperites adb shell getprop
-func (d *Device) GetProperites(filter PropertiesFilter) (properties map[string]string, err error) {
-	resp, err := d.RunCommand("getprop")
-	if err != nil {
-		return
-	}
-
-	properties = parseDeviceProperties(resp, filter)
-	if len(properties) == 0 {
-		err = fmt.Errorf("not found any properties")
-	}
-	return
-}
-
-var (
 	etherRegex = regexp.MustCompile(`\s*link/ether\s+(\S+)`)
 	inetRegex  = regexp.MustCompile(`\s*(inet6?)\s+(\S+)`)
 )
