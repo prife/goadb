@@ -206,3 +206,44 @@ func (d *Device) GetWlanInfo() (info EtherInfo, err error) {
 	info.Name = "wlan0"
 	return
 }
+
+var (
+	meminfoRegex = regexp.MustCompile(`(?m)\s*(\S+)\:\s*(\d+)\s*kB$`)
+)
+
+// in kB
+func parseMemoryInfo(resp []byte) (info map[string]uint64, err error) {
+	matches := meminfoRegex.FindAllSubmatch(resp, -1)
+	if len(matches) == 0 {
+		return
+	}
+
+	info = make(map[string]uint64)
+	for _, match := range matches {
+		v, err := strconv.ParseInt(string(match[2]), 0, 64)
+		if err != nil {
+			continue
+		}
+		info[string(match[1])] = uint64(v)
+	}
+	return
+}
+
+// GetMemoryTotal
+func (d *Device) GetMemoryTotal() (totalInKb uint64, err error) {
+	resp, err := d.RunCommand("cat /proc/meminfo")
+	if err != nil {
+		return
+	}
+
+	info, err := parseMemoryInfo(resp)
+	if err != nil {
+		return
+	}
+	totalInKb, ok := info["MemTotal"]
+	if !ok {
+		err = fmt.Errorf("no MemTotal found")
+		return
+	}
+	return
+}

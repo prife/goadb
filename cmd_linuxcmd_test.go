@@ -158,3 +158,29 @@ func TestDevice_GetWlanInfo(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Println(info)
 }
+
+func Test_parseMemoryInfo(t *testing.T) {
+	output := []byte(`
+MemTotal:       23794344 kB
+MemFree:          430780 kB
+MemAvailable:   17117864 kB
+Buffers:            8628 kB
+Cached:         12901756 kB
+SwapCached:        27376 kB
+SecPageTables:         0 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+`)
+
+	info, err := parseMemoryInfo(output)
+	assert.Nil(t, err)
+	assert.Equal(t, len(info), 10)
+	for k, v := range info {
+		fmt.Printf("%-16s %9d kB\n", k, v)
+	}
+
+	assert.Equal(t, info["MemTotal"], uint64(23794344))
+	assert.Equal(t, info["MemFree"], uint64(430780))
+	assert.Equal(t, info["MemAvailable"], uint64(17117864))
+}
