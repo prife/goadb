@@ -28,7 +28,7 @@ func TestStatValid(t *testing.T) {
 
 	fs := &FileService{conn}
 
-	entry, err := fs.stat("/thing")
+	entry, err := fs.Stat("/thing")
 	assert.NoError(t, err)
 	require.NotNil(t, entry)
 	assert.Equal(t, mode, entry.Mode, "expected os.FileMode %s, got %s", mode, entry.Mode)
@@ -44,7 +44,7 @@ func TestStatBadResponse(t *testing.T) {
 	conn.SendOctetString("SPAT")
 
 	fs := &FileService{conn}
-	entry, err := fs.stat("/")
+	entry, err := fs.Stat("/")
 	assert.Nil(t, entry)
 	assert.Error(t, err)
 }
@@ -58,7 +58,7 @@ func TestStatNoExist(t *testing.T) {
 	conn.SendInt32(0)
 	conn.SendTime(time.Unix(0, 0).UTC())
 	fs := &FileService{conn}
-	entry, err := fs.stat("/")
+	entry, err := fs.Stat("/")
 	assert.Nil(t, entry)
 	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
 }

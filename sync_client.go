@@ -34,7 +34,7 @@ type FileService struct {
 	*wire.SyncConn
 }
 
-func (conn *FileService) stat(path string) (*DirEntry, error) {
+func (conn *FileService) Stat(path string) (*DirEntry, error) {
 	if err := conn.SendOctetString("STAT"); err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (conn *FileService) stat(path string) (*DirEntry, error) {
 	return &DirEntry{Mode: mode, Size: size, ModifiedAt: mtime}, nil
 }
 
-func (conn *FileService) listDirEntries(path string) (entries *DirEntries, err error) {
+func (conn *FileService) ListDirEntries(path string) (entries *DirEntries, err error) {
 	if err = conn.SendOctetString("LIST"); err != nil {
 		return
 	}
@@ -84,7 +84,7 @@ func (conn *FileService) listDirEntries(path string) (entries *DirEntries, err e
 	return &DirEntries{syncConn: conn.SyncConn}, nil
 }
 
-func (conn *FileService) receiveFile(path string) (io.ReadCloser, error) {
+func (conn *FileService) ReceiveFile(path string) (io.ReadCloser, error) {
 	if err := conn.SendOctetString("RECV"); err != nil {
 		return nil, err
 	}
@@ -94,11 +94,11 @@ func (conn *FileService) receiveFile(path string) (io.ReadCloser, error) {
 	return newSyncFileReader(conn.SyncConn), nil
 }
 
-// sendFile returns a WriteCloser than will write to the file at path on device.
+// SendFile returns a WriteCloser than will write to the file at path on device.
 // The file will be created with permissions specified by mode.
 // The file's modified time will be set to mtime, unless mtime is 0, in which case the time the writer is
 // closed will be used.
-func (conn *FileService) sendFile(path string, mode os.FileMode, mtime time.Time) (io.WriteCloser, error) {
+func (conn *FileService) SendFile(path string, mode os.FileMode, mtime time.Time) (io.WriteCloser, error) {
 	if err := conn.SendOctetString("SEND"); err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (conn *FileService) sendFile(path string, mode os.FileMode, mtime time.Time
 }
 
 func (s *FileService) PullFile(remotePath, localPath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
-	info, err := s.stat(remotePath)
+	info, err := s.Stat(remotePath)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (s *FileService) PullFile(remotePath, localPath string, handler func(total,
 	defer writer.Close()
 
 	// open remote reader
-	reader, err := s.receiveFile(remotePath)
+	reader, err := s.ReceiveFile(remotePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
 		return
@@ -191,7 +191,7 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(total,
 	defer localFile.Close()
 
 	// open remote writer
-	writer, err := s.sendFile(remotePath, perms, mtime)
+	writer, err := s.SendFile(remotePath, perms, mtime)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
 		return
@@ -258,7 +258,7 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(total, s
 			defer localFile.Close()
 
 			target := remotePath + "/" + info.Name()
-			writer, err := s.sendFile(target, info.Mode().Perm(), info.ModTime())
+			writer, err := s.SendFile(target, info.Mode().Perm(), info.ModTime())
 			if err != nil {
 				panic(err)
 			}
