@@ -78,7 +78,7 @@ func TestFileService_PushDir(t *testing.T) {
 
 	fmt.Println("workdir: ", pwd)
 
-	err = fs.PushDir("wire", "/sdcard/test/",
+	err = fs.PushDir("/Users/wetest/workplace/udt/goadb/wire", "/sdcard/test/",
 		func(totalFiles, sentFiles uint64, current string, speed float64, err error) {
 			if err != nil {
 				fmt.Printf("[%d/%d] pushing %s, err:%s\n", sentFiles, totalFiles, current, err.Error())

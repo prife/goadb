@@ -48,7 +48,7 @@ func (conn *FileService) Stat(path string) (*DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if id != "STAT" {
+	if id != ID_LSTAT_V1 {
 		return nil, fmt.Errorf("%w: expected stat ID 'STAT', but got '%s'", wire.ErrAssertion, id)
 	}
 
@@ -234,14 +234,12 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 	// Count the total amount of regular files in localDir
 	var totalFiles uint64
 	err = filepath.WalkDir(localDir, func(path string, d fs.DirEntry, err error) error {
-		// fmt.Printf("path=%s, d=%v, err=%v\n", path, d, err)
 		if path == localDir {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-
 		// ignore special file
 		if d.Type().IsRegular() || d.IsDir() {
 			totalFiles++
@@ -252,7 +250,6 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 		return fmt.Errorf("walk dir %s failed: %w", localDir, err)
 	}
 
-	// fmt.Println("--total direcoties and files: ", totalFiles)
 	var sending uint64
 	err = filepath.WalkDir(localDir,
 		func(path string, d fs.DirEntry, err error) error {
@@ -263,10 +260,12 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 				return err
 			}
 
-			if d.IsDir() {
-				panic("not support dir")
-			}
+			relativePath, _ := filepath.Rel(localDir, path)
+			// if d.IsDir() {
+			// 	panic("not support dir")
+			// }
 
+			// ignore special files
 			if !d.Type().IsRegular() {
 				return nil
 			}
@@ -276,7 +275,8 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 			// 	return nil
 			// }
 			sending++
-			target := remotePath + "/" + d.Name()
+
+			target := remotePath + "/" + relativePath
 			// totalSize := float64(info.Size())
 			sentSize := float64(0)
 			startTime := time.Now()
@@ -292,10 +292,7 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 				}
 			})
 			if err != nil {
-				// fmt.Fprintf(os.Stderr, "[FAIL] cp %s -> %s: %s\n", path, target, err.Error())
-				handler(totalFiles, sending, remotePath, 0, err)
-			} else {
-				// fmt.Fprintf(os.Stdout, "[OKAY] cp %s -> %s", path, target)
+				handler(totalFiles, sending, target, 0, err)
 			}
 			return nil
 		})
