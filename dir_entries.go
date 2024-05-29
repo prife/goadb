@@ -78,10 +78,10 @@ func readNextDirListEntry(s *wire.SyncConn) (entry *DirEntry, done bool, err err
 		return
 	}
 
-	if status == "DONE" {
+	if status == ID_DONE {
 		done = true
 		return
-	} else if status != "DENT" {
+	} else if status != ID_DENT_V1 {
 		err = fmt.Errorf("error reading dir entries: expected dir entry ID 'DENT', but got '%s'", status)
 		return
 	}

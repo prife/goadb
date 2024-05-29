@@ -93,8 +93,7 @@ func TestReadError(t *testing.T) {
 }
 
 func TestReadEmpty(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
-		"DONE"))
+	s := wire.NewSyncConn(makeMockConnStr(ID_DONE))
 	r := newSyncFileReader(s)
 	data, err := io.ReadAll(r)
 	assert.NoError(t, err)
@@ -204,7 +203,7 @@ func TestFileWriterCloseAutoMtime(t *testing.T) {
 
 	assert.NoError(t, writer.Close())
 	assert.Len(t, buf.String(), 8)
-	assert.True(t, strings.HasPrefix(buf.String(), "DONE"))
+	assert.True(t, strings.HasPrefix(buf.String(), ID_DONE))
 
 	mtimeBytes := buf.Bytes()[4:]
 	mtimeActual := time.Unix(int64(binary.LittleEndian.Uint32(mtimeBytes)), 0)

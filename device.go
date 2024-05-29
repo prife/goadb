@@ -144,7 +144,7 @@ func (c *Device) ListDirEntries(path string) (*DirEntries, error) {
 		return nil, wrapClientError(err, c, "ListDirEntries(%s)", path)
 	}
 
-	entries, err := conn.ListDirEntries(path)
+	entries, err := conn.List(path)
 	return entries, wrapClientError(err, c, "ListDirEntries(%s)", path)
 }
 
@@ -165,7 +165,7 @@ func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
 		return nil, wrapClientError(err, c, "OpenRead(%s)", path)
 	}
 
-	reader, err := conn.ReceiveFile(path)
+	reader, err := conn.Recv(path)
 	return reader, wrapClientError(err, c, "OpenRead(%s)", path)
 }
 
@@ -179,7 +179,7 @@ func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (io.
 		return nil, wrapClientError(err, c, "OpenWrite(%s)", path)
 	}
 
-	writer, err := conn.SendFile(path, perms, mtime)
+	writer, err := conn.Send(path, perms, mtime)
 	return writer, wrapClientError(err, c, "OpenWrite(%s)", path)
 }
 
