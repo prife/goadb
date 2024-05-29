@@ -3,6 +3,8 @@ package adb
 import (
 	"fmt"
 	"io"
+	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -120,23 +122,21 @@ func (conn *FileService) Send(path string, mode os.FileMode, mtime time.Time) (i
 func (s *FileService) PullFile(remotePath, localPath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
 	info, err := s.Stat(remotePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("stat remote file %s: %w", remotePath, err)
 	}
 	size := info.Size
 
 	// FIXME: need support Dir or file
 	writer, err := os.Create(localPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening local file %s: %s\n", localPath, err)
-		return err
+		return fmt.Errorf("open local file %s: %w", localPath, err)
 	}
 	defer writer.Close()
 
 	// open remote reader
 	reader, err := s.Recv(remotePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
-		return
+		return fmt.Errorf("recv remote file %s: %w", remotePath, err)
 	}
 	defer reader.Close()
 
@@ -154,30 +154,29 @@ func (s *FileService) PullFile(remotePath, localPath string, handler func(total,
 	var sent int64
 	for {
 		n, err := reader.Read(chunk)
-		// fmt.Println("----", n, err)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
+		if err != nil && err != io.EOF {
 			return err
+		}
+		if n == 0 {
+			return nil
 		}
 		if n > 0 {
 			if handler != nil {
 				sent += int64(n)
-				handler(int64(size), sent, time.Since(startTime), "pull")
+				handler(int64(size), sent, time.Since(startTime), "pulling")
 			}
 			_, err = writer.Write(chunk[0:n])
 			if err != nil {
 				return err
 			}
 		}
-
 	}
 }
 
-func (s *FileService) PushFile(localPath, remotePath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
+func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint64)) (err error) {
 	info, err := os.Lstat(localPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("stat remote file %s: %w", localPath, err)
 	}
 	size := int(info.Size())
 	perms := info.Mode().Perm()
@@ -186,15 +185,14 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(total,
 	// open src reader
 	localFile, err := os.Open(localPath)
 	if err != nil {
-		return
+		return fmt.Errorf("open local file %s: %w", localPath, err)
 	}
 	defer localFile.Close()
 
 	// open remote writer
 	writer, err := s.Send(remotePath, perms, mtime)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
-		return
+		return fmt.Errorf("write remote file %s: %w", remotePath, err)
 	}
 	defer writer.Close()
 
@@ -208,36 +206,56 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(total,
 	}
 
 	chunk := make([]byte, maxWriteSize)
-	startTime := time.Now()
-	var sent int64
 	for {
 		n, err := localFile.Read(chunk)
 		if err != nil && err != io.EOF {
 			return err
 		}
 		if n == 0 {
-			break
-		}
-		if handler != nil {
-			sent += int64(n)
-			handler(info.Size(), sent, time.Since(startTime), "pushing")
+			return nil
 		}
 		_, err = writer.Write(chunk[0:n])
 		if err != nil {
 			return err
 		}
+		if handler != nil {
+			handler(uint64(n))
+		}
 	}
-	return
 }
 
-func (s *FileService) PushDir(localDir, remotePath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
+func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFiles, sentFiles uint64, current string, speed float64, err error)) (err error) {
 	info, err := os.Lstat(localDir)
 	if err != nil {
 		return err
 	}
+	_ = info
 
-	err = filepath.Walk(localDir,
-		func(path string, info os.FileInfo, err error) error {
+	// Count the total amount of regular files in localDir
+	var totalFiles uint64
+	err = filepath.WalkDir(localDir, func(path string, d fs.DirEntry, err error) error {
+		// fmt.Printf("path=%s, d=%v, err=%v\n", path, d, err)
+		if path == localDir {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		// ignore special file
+		if d.Type().IsRegular() || d.IsDir() {
+			totalFiles++
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("walk dir %s failed: %w", localDir, err)
+	}
+
+	// fmt.Println("--total direcoties and files: ", totalFiles)
+	var sending uint64
+	err = filepath.WalkDir(localDir,
+		func(path string, d fs.DirEntry, err error) error {
 			if path == localDir {
 				return nil
 			}
@@ -245,35 +263,41 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(total, s
 				return err
 			}
 
-			if info.IsDir() {
+			if d.IsDir() {
 				panic("not support dir")
 			}
 
-			fmt.Println(path, info.Name())
-
-			localFile, err := os.Open(path)
-			if err != nil {
-				panic(err)
-			}
-			defer localFile.Close()
-
-			target := remotePath + "/" + info.Name()
-			writer, err := s.Send(target, info.Mode().Perm(), info.ModTime())
-			if err != nil {
-				panic(err)
-			}
-			n, err := io.Copy(writer, localFile)
-			if err != nil {
-				panic(err)
+			if !d.Type().IsRegular() {
+				return nil
 			}
 
-			fmt.Println("--> write to :", info.Name(), " n:", n)
-			writer.Close()
+			// info, err := d.Info()
+			// if err != nil {
+			// 	return nil
+			// }
+			sending++
+			target := remotePath + "/" + d.Name()
+			// totalSize := float64(info.Size())
+			sentSize := float64(0)
+			startTime := time.Now()
+			err = s.PushFile(path, target, func(n uint64) {
+				// percent := float64(sentSize) / float64(totalSize) * 100
+				sentSize = sentSize + float64(n)
+				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
+				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
+				if speedMBPerSecond == math.Inf(+1) {
+					handler(totalFiles, sending, target, 100, nil) // as 100MB/s
+				} else {
+					handler(totalFiles, sending, target, speedMBPerSecond, nil)
+				}
+			})
+			if err != nil {
+				// fmt.Fprintf(os.Stderr, "[FAIL] cp %s -> %s: %s\n", path, target, err.Error())
+				handler(totalFiles, sending, remotePath, 0, err)
+			} else {
+				// fmt.Fprintf(os.Stdout, "[OKAY] cp %s -> %s", path, target)
+			}
 			return nil
 		})
-	if err != nil {
-		return err
-	}
-	_ = info
 	return
 }

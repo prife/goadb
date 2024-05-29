@@ -28,11 +28,21 @@ func TestFileService_PushFile(t *testing.T) {
 	}
 	defer fs.Close()
 
-	err = fs.PushFile("/Users/wetest/Downloads/RTR4-CN.pdf", "/sdcard/RTR4-CN.pdf",
-		func(total, sent int64, duration time.Duration, status string) {
+	f := "/Users/wetest/Downloads/RTR4-CN.pdf"
+	info, err := os.Stat(f)
+	if err != nil {
+		t.Fatal(t)
+	}
+
+	total := float64(info.Size())
+	sent := float64(0)
+	startTime := time.Now()
+	err = fs.PushFile(f, "/sdcard/RTR4-CN.pdf",
+		func(n uint64) {
+			sent = sent + float64(n)
 			percent := float64(sent) / float64(total) * 100
-			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
-			fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, sent, speedKBPerSecond)
+			speedMBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(time.Since(startTime)) / float64(time.Second))
+			fmt.Printf("push %.02f%% %f Bytes, %.02f MB/s\n", percent, sent, speedMBPerSecond)
 		})
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +59,7 @@ func TestFileService_PullFile(t *testing.T) {
 	err = fs.PullFile("/sdcard/WeChatMac.dmg", "WeChatMac.dmg",
 		func(total, sent int64, duration time.Duration, status string) {
 			percent := float64(sent) / float64(total) * 100
-			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
+			speedKBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / float64(duration)
 			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
 		})
 	if err != nil {
@@ -64,8 +74,18 @@ func TestFileService_PushDir(t *testing.T) {
 	}
 	defer fs.Close()
 
-	err = fs.PushDir("doc", "/sdcard/test/",
-		func(total, sent int64, duration time.Duration, status string) {})
+	pwd, _ := os.Getwd()
+
+	fmt.Println("workdir: ", pwd)
+
+	err = fs.PushDir("wire", "/sdcard/test/",
+		func(totalFiles, sentFiles uint64, current string, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, err:%s\n", sentFiles, totalFiles, current, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %.02f MB/s\n", sentFiles, totalFiles, current, speed)
+			}
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
