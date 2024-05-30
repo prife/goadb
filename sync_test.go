@@ -8,6 +8,7 @@ import (
 	"time"
 
 	adb "github.com/prife/goadb"
+	"github.com/stretchr/testify/assert"
 )
 
 func newFs() (svr *adb.FileService, err error) {
@@ -132,4 +133,16 @@ func TestForwardPort(t *testing.T) {
 		}
 		time.Sleep(time.Second * 1)
 	}
+}
+
+func Test_listAllSubDirs(t *testing.T) {
+	gotList, err := adb.ListAllSubDirs("cmd")
+	assert.Nil(t, err)
+
+	for _, l := range gotList {
+		fmt.Println(l)
+	}
+
+	_, err = adb.ListAllSubDirs("non-exsited")
+	assert.True(t, os.IsNotExist(err))
 }

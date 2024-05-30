@@ -237,11 +237,11 @@ func (s *FileService) PushDir(onlySubFiles bool, localDir, remotePath string, ha
 	// Count the total amount of regular files in localDir
 	var totalFiles uint64
 	err = filepath.WalkDir(localDir, func(path string, d fs.DirEntry, err error) error {
-		if path == localDir {
-			return nil
-		}
 		if err != nil {
 			return err
+		}
+		if path == localDir {
+			return nil
 		}
 		// ignore special file
 		if d.Type().IsRegular() || d.IsDir() {
@@ -263,11 +263,11 @@ func (s *FileService) PushDir(onlySubFiles bool, localDir, remotePath string, ha
 	var sentFiles uint64
 	err = filepath.WalkDir(localDir,
 		func(path string, d fs.DirEntry, err error) error {
-			if path == localDir {
-				return nil
-			}
 			if err != nil {
 				return err
+			}
+			if path == localDir {
+				return nil
 			}
 			// ignore special files
 			if !d.Type().IsRegular() {

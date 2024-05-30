@@ -10,24 +10,21 @@ import (
 	"time"
 )
 
-func listAllSubDirs(localDir string) (list []string, err error) {
+func ListAllSubDirs(localDir string) (list []string, err error) {
 	err = filepath.WalkDir(localDir, func(path string, d fs.DirEntry, err error) error {
-		if path == localDir {
-			return nil
-		}
 		if err != nil {
 			return err
 		}
+		if path == localDir {
+			return nil
+		}
 		// ignore special file
-		if d.Type().IsRegular() || d.IsDir() {
+		if d.IsDir() {
 			relativePath, _ := filepath.Rel(localDir, path)
 			list = append(list, relativePath)
 		}
 		return nil
 	})
-	if err != nil {
-		err = fmt.Errorf("walk dir %s failed: %w", localDir, err)
-	}
 	return
 }
 
@@ -43,7 +40,7 @@ func (c *Device) MakeDirs(list []string) error {
 			}
 
 			if len(resp) > 0 {
-				errs = append(errs, fmt.Errorf("%s", err))
+				errs = append(errs, fmt.Errorf("%s", resp))
 			}
 			commonds.Reset()
 		}
@@ -58,7 +55,7 @@ func (c *Device) MakeDirs(list []string) error {
 			return err
 		}
 		if len(resp) > 0 {
-			errs = append(errs, fmt.Errorf("%s", err))
+			errs = append(errs, fmt.Errorf("%s", resp))
 		}
 	}
 	return errors.Join(errs...)
@@ -98,7 +95,7 @@ func (c *Device) PushFile(local, remote string, handler func(totoal, sent int64,
 // 2.如果'dest-dir'路径存在，会创建'dest-dir/src-dir'，其内容与`src-dir`完全一致
 //
 // 本函数只支持情况2，既永远会在手机上创建src-dir
-func (c *Device) PushDir(onlySubFiles bool, local, remote string, handler SyncHandler) (err error) {
+func (c *Device) PushDir(local, remote string, onlySubFiles bool, handler SyncHandler) (err error) {
 	linfo, err := os.Lstat(local)
 	if err != nil {
 		return err
@@ -109,7 +106,7 @@ func (c *Device) PushDir(onlySubFiles bool, local, remote string, handler SyncHa
 	}
 
 	// mkdir sub dirs
-	subdirs, err := listAllSubDirs(local)
+	subdirs, err := ListAllSubDirs(local)
 	if err != nil {
 		return
 	}
