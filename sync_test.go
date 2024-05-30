@@ -41,7 +41,7 @@ func TestFileService_PushFile(t *testing.T) {
 		func(n uint64) {
 			sent = sent + float64(n)
 			percent := float64(sent) / float64(total) * 100
-			speedMBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(time.Since(startTime)) / float64(time.Second))
+			speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
 			fmt.Printf("push %.02f%% %f Bytes, %.02f MB/s\n", percent, sent, speedMBPerSecond)
 		})
 	if err != nil {
@@ -78,12 +78,12 @@ func TestFileService_PushDir(t *testing.T) {
 
 	fmt.Println("workdir: ", pwd)
 
-	err = fs.PushDir("/Users/wetest/workplace/udt/goadb/wire", "/sdcard/test/",
-		func(totalFiles, sentFiles uint64, current string, speed float64, err error) {
+	err = fs.PushDir(false, "/Users/wetest/workplace/udt/goadb/wire", "/sdcard/test/",
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
 			if err != nil {
-				fmt.Printf("[%d/%d] pushing %s, err:%s\n", sentFiles, totalFiles, current, err.Error())
+				fmt.Printf("[%d/%d] pushing %s, %%%.2f, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
 			} else {
-				fmt.Printf("[%d/%d] pushing %s, %.02f MB/s\n", sentFiles, totalFiles, current, speed)
+				fmt.Printf("[%d/%d] pushing %s, %%%.2f, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
 			}
 		})
 	if err != nil {

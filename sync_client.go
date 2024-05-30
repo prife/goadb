@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -224,7 +225,9 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 	}
 }
 
-func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFiles, sentFiles uint64, current string, speed float64, err error)) (err error) {
+type SyncHandler func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error)
+
+func (s *FileService) PushDir(onlySubFiles bool, localDir, remotePath string, handler SyncHandler) (err error) {
 	info, err := os.Lstat(localDir)
 	if err != nil {
 		return err
@@ -250,7 +253,14 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 		return fmt.Errorf("walk dir %s failed: %w", localDir, err)
 	}
 
-	var sending uint64
+	remotePath = trimSuffixSlash(remotePath)
+	localDir = trimSuffixSlash(localDir)
+
+	if !onlySubFiles {
+		remotePath = remotePath + "/" + path.Base(localDir)
+	}
+
+	var sentFiles uint64
 	err = filepath.WalkDir(localDir,
 		func(path string, d fs.DirEntry, err error) error {
 			if path == localDir {
@@ -259,42 +269,40 @@ func (s *FileService) PushDir(localDir, remotePath string, handler func(totalFil
 			if err != nil {
 				return err
 			}
-
-			relativePath, _ := filepath.Rel(localDir, path)
-			// if d.IsDir() {
-			// 	panic("not support dir")
-			// }
-
 			// ignore special files
 			if !d.Type().IsRegular() {
 				return nil
 			}
 
-			// info, err := d.Info()
-			// if err != nil {
-			// 	return nil
-			// }
-			sending++
-
+			sentFiles++
+			relativePath, _ := filepath.Rel(localDir, path)
 			target := remotePath + "/" + relativePath
-			// totalSize := float64(info.Size())
+			totalSize := float64(info.Size())
 			sentSize := float64(0)
 			startTime := time.Now()
+			percent := float64(0)
 			err = s.PushFile(path, target, func(n uint64) {
-				// percent := float64(sentSize) / float64(totalSize) * 100
+				percent = float64(sentSize) / float64(totalSize) * 100
 				sentSize = sentSize + float64(n)
 				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
 				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
 				if speedMBPerSecond == math.Inf(+1) {
-					handler(totalFiles, sending, target, 100, nil) // as 100MB/s
+					handler(totalFiles, sentFiles, target, percent, 100, nil) // as 100MB/s
 				} else {
-					handler(totalFiles, sending, target, speedMBPerSecond, nil)
+					handler(totalFiles, sentFiles, target, percent, speedMBPerSecond, nil)
 				}
 			})
 			if err != nil {
-				handler(totalFiles, sending, target, 0, err)
+				handler(totalFiles, sentFiles, target, percent, 0, err)
 			}
 			return nil
 		})
 	return
+}
+
+func trimSuffixSlash(p string) string {
+	if len(p) > 1 && p[:len(p)-1] == "/" {
+		p = p[:len(p)-1]
+	}
+	return p
 }
