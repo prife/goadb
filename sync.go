@@ -1,12 +1,12 @@
 package adb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -28,34 +28,48 @@ func ListAllSubDirs(localDir string) (list []string, err error) {
 	return
 }
 
-func (c *Device) MakeDirs(list []string) error {
-	var commonds strings.Builder
+func filterFileExistedError(resp []byte) (errs []error) {
+	lines := bytes.Split(resp, []byte("\n"))
+	for _, line := range lines {
+		line := bytes.TrimSpace(line)
+		if len(line) > 0 && !bytes.HasSuffix(line, []byte(": File exists")) {
+			errs = append(errs, errors.New(string(line)))
+		}
+	}
+	return
+}
+
+func (c *Device) Mkdirs(list []string) error {
+	var commonds []string
+	var commandsLen int
 
 	var errs []error
 	for _, l := range list {
-		if commonds.Len()+len(l) > 32768 {
-			resp, err := c.RunCommand("mkdir", commonds.String())
+		if commandsLen+len(l) > 32768 {
+			resp, err := c.RunCommand("mkdir", commonds...)
 			if err != nil {
 				return err
 			}
 
 			if len(resp) > 0 {
-				errs = append(errs, fmt.Errorf("%s", resp))
+				errs = filterFileExistedError(resp)
 			}
-			commonds.Reset()
+			commonds = make([]string, 0)
+			commandsLen = 0
 		}
 
-		commonds.WriteString(l)
-		commonds.WriteString(" ")
+		commonds = append(commonds, l)
+		commandsLen = commandsLen + len(l) + 1 // and one space
 	}
 
-	if commonds.Len() > 0 {
-		resp, err := c.RunCommand("mkdir", commonds.String())
+	if commandsLen > 0 {
+		resp, err := c.RunCommand("mkdir", commonds...)
 		if err != nil {
 			return err
 		}
 		if len(resp) > 0 {
-			errs = append(errs, fmt.Errorf("%s", resp))
+			errs2 := filterFileExistedError(resp)
+			errs = append(errs, errs2...)
 		}
 	}
 	return errors.Join(errs...)
@@ -114,7 +128,7 @@ func (c *Device) PushDir(local, remote string, onlySubFiles bool, handler SyncHa
 	for i, d := range subdirs {
 		remoteSubDirs[i] = remote + "/" + d
 	}
-	err = c.MakeDirs(remoteSubDirs)
+	err = c.Mkdirs(remoteSubDirs)
 	if err != nil {
 		// don't return, just log error
 		fmt.Printf("mkdir failed: %s\n", err.Error())

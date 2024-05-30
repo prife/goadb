@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,11 +13,6 @@ import (
 )
 
 func newFs() (svr *adb.FileService, err error) {
-	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
-	if err != nil {
-		return
-	}
-
 	d := adbclient.Device(adb.AnyDevice())
 	svr, err = d.NewFileService()
 	return
@@ -93,11 +89,6 @@ func TestFileService_PushDir(t *testing.T) {
 }
 
 func TestDeviceFeatures(t *testing.T) {
-	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	features, err := adbclient.HostFeatures()
 	if err != nil {
 		t.Fatal(err)
@@ -111,10 +102,6 @@ func TestDeviceFeatures(t *testing.T) {
 }
 
 func TestForwardPort(t *testing.T) {
-	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
 	d := adbclient.Device(adb.AnyDevice())
 	conn, err := d.ForwardPort(50000)
 	if err != nil {
@@ -145,4 +132,69 @@ func Test_listAllSubDirs(t *testing.T) {
 
 	_, err = adb.ListAllSubDirs("non-exsited")
 	assert.True(t, os.IsNotExist(err))
+}
+
+// $ adb shell mkdir /sdcard/a/ /sdcard/a/b /sdcard/a/b/c
+// $ adb shell mkdir /sdcard/a/ /sdcard/a/b /sdcard/a/b/c
+// mkdir: '/sdcard/a/': File exists
+// mkdir: '/sdcard/a/b': File exists
+// mkdir: '/sdcard/a/b/c': File exists
+func TestDevice_Mkdirs(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	_, err := d.RunCommand("rm", "-rf", "/sdcard/a")
+	assert.Nil(t, err)
+
+	err = d.Mkdirs([]string{"/sdcard/a/", "/sdcard/a/b", "/sdcard/a/b/c"})
+	assert.Nil(t, err)
+	err = d.Mkdirs([]string{"/sdcard/a/", "/sdcard/a/b", "/sdcard/a/b/c"})
+	assert.Nil(t, err)
+}
+
+// $ adb shell mkdir /sd/a/ /sd/a/b /sd/a/b/c
+// mkdir: '/sd/a/': No such file or directory
+// mkdir: '/sd/a/b': No such file or directory
+// mkdir: '/sd/a/b/c': No such file or directory
+func TestDevice_Mkdirs_NonExsit(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/sd/a/", "/sd/a/b", "/sd/a/b/c"})
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return
+		}
+		assert.Contains(t, line, " No such file or directory")
+	}
+}
+
+func TestDevice_Mkdirs_ReadOnly(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/a", "/b", "/c"})
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return
+		}
+		assert.Contains(t, line, "Read-only file system")
+	}
+}
+
+func TestDevice_Mkdirs_PermissionDeny(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/data/a", "/data/b", "/data/c"})
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return
+		}
+		assert.Contains(t, line, "Permission denied")
+	}
 }
