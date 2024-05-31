@@ -32,7 +32,7 @@ func filterFileExistedError(resp []byte) (errs []error) {
 	lines := bytes.Split(resp, []byte("\n"))
 	for _, line := range lines {
 		line := bytes.TrimSpace(line)
-		if len(line) > 0 && !bytes.HasSuffix(line, []byte(": File exists")) {
+		if len(line) > 0 && !bytes.HasSuffix(line, []byte("File exists")) {
 			errs = append(errs, errors.New(string(line)))
 		}
 	}

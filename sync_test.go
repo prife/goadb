@@ -165,7 +165,7 @@ func TestDevice_Mkdirs_NonExsit(t *testing.T) {
 		if len(line) == 0 {
 			return
 		}
-		assert.Contains(t, line, " No such file or directory")
+		assert.Contains(t, line, "No such file or directory")
 	}
 }
 
