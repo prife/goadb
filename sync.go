@@ -75,7 +75,7 @@ func (c *Device) Mkdirs(list []string) error {
 	return errors.Join(errs...)
 }
 
-func (c *Device) PushFile(local, remote string, handler func(totoal, sent int64, percent, speedMBPerSecond float64)) error {
+func (c *Device) PushFile(local, remote string, handler func(totoalSize, sentSize int64, percent, speedMBPerSecond float64)) error {
 	linfo, err := os.Lstat(local)
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func (c *Device) PushFile(local, remote string, handler func(totoal, sent int64,
 	startTime := time.Now()
 	err = fconn.PushFile(local, remote, func(n uint64) {
 		sent = sent + float64(n)
-		percent := float64(sent) / float64(total)
+		percent := float64(sent) / float64(total) * 100
 		speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
 		handler(total, int64(sent), percent, speedMBPerSecond)
 	})
@@ -137,6 +137,7 @@ func (c *Device) PushDir(local, remote string, onlySubFiles bool, handler SyncHa
 	if err != nil {
 		// don't return, just log error
 		fmt.Printf("mkdir failed: %s\n", err.Error())
+		return err
 	}
 
 	// push files

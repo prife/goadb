@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,15 @@ import (
 	adb "github.com/prife/goadb"
 	"github.com/stretchr/testify/assert"
 )
+
+var (
+	testZip string
+)
+
+func init() {
+	homePath, _ := os.UserHomeDir()
+	testZip = path.Join(homePath, "Downloads/test.zip")
+}
 
 func newFs() (svr *adb.FileService, err error) {
 	d := adbclient.Device(adb.AnyDevice())
@@ -198,7 +208,18 @@ func TestDevice_Mkdirs_PermissionDeny(t *testing.T) {
 
 func TestDevice_PushFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
-	err := d.PushFile("/Users/zhongkaizhu/Downloads/test.zip", "/sdcard/test.zip",
+	err := d.PushFile(testZip, "/sdcard/test.zip",
+		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDevice_PushFileToDir(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.PushFile(testZip, "/sdcard/",
 		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
 		})

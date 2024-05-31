@@ -179,20 +179,26 @@ func (s *FileService) PullFile(remotePath, localPath string, handler func(total,
 }
 
 func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint64)) (err error) {
-	info, err := os.Lstat(localPath)
+	linfo, err := os.Lstat(localPath)
 	if err != nil {
-		return fmt.Errorf("stat remote file %s: %w", localPath, err)
+		return fmt.Errorf("stat %s: %w", localPath, err)
 	}
 	// size := int(info.Size())
-	perms := info.Mode().Perm()
-	mtime := info.ModTime()
+	perms := linfo.Mode().Perm()
+	mtime := linfo.ModTime()
 
 	// open src reader
 	localFile, err := os.Open(localPath)
 	if err != nil {
-		return fmt.Errorf("open local file %s: %w", localPath, err)
+		return fmt.Errorf("open %s: %w", localPath, err)
 	}
 	defer localFile.Close()
+
+	// if remotePath is dir, just append src file name
+	rinfo, err := s.Stat(remotePath)
+	if err == nil && rinfo.Mode.IsDir() {
+		remotePath = remotePath + "/" + linfo.Name()
+	}
 
 	// open remote writer
 	writer, err := s.Send(remotePath, perms, mtime)
