@@ -84,6 +84,11 @@ func (c *Device) PushFile(local, remote string, handler func(totoal, sent int64,
 		return fmt.Errorf("not regular file: %s", local)
 	}
 
+	// features, err := c.DeviceFeatures()
+	// if err != nil {
+	// 	return fmt.Errorf("get device features: %w", err)
+	// }
+
 	fconn, err := c.getSyncConn()
 	if err != nil {
 		return err

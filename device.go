@@ -24,7 +24,31 @@ type Device struct {
 
 	// Used to get device info.
 	deviceListFunc func() ([]*DeviceInfo, error)
+	deviceFeatures map[string]bool
 }
+
+const (
+	FeatureShell2                    = "shell_v2"
+	FeatureCmd                       = "cmd"
+	FeatureStat2                     = "stat_v2"
+	FeatureLs2                       = "ls_v2"
+	FeatureLibusb                    = "libusb"
+	FeaturePushSync                  = "push_sync"
+	FeatureApex                      = "apex"
+	FeatureFixedPushMkdir            = "fixed_push_mkdir"
+	FeatureAbb                       = "abb"
+	FeatureFixedPushSymlinkTimestamp = "fixed_push_symlink_timestamp"
+	FeatureAbbExec                   = "abb_exec"
+	FeatureRemountShell              = "remount_shell"
+	//track_app
+	//sendrecv_v2
+	//sendrecv_v2_brotli
+	//sendrecv_v2_lz4
+	//sendrecv_v2_zstd
+	//sendrecv_v2_dry_run_send
+	//openscreen_mdns
+	//push_sync
+)
 
 func (c *Device) String() string {
 	return c.descriptor.String()
@@ -40,9 +64,13 @@ func (c *Device) DevicePath() (string, error) {
 	return attr, wrapClientError(err, c, "DevicePath")
 }
 
-func (c *Device) DeviceFeatures() (string, error) {
+func (c *Device) DeviceFeatures() (features map[string]bool, err error) {
 	attr, err := c.getAttribute("features")
-	return attr, wrapClientError(err, c, "DevicePath")
+	if err != nil {
+		return nil, wrapClientError(err, c, "features")
+	}
+	features = featuresStrToMap(attr)
+	return
 }
 
 func (c *Device) State() (DeviceState, error) {

@@ -111,3 +111,12 @@ func TestPrepareCommandLineArgWithDoubleQuoteFails(t *testing.T) {
 	assert.True(t, errors.Is(err, wire.ErrParse))
 	assert.Contains(t, err.Error(), "arg at index 0 contains an invalid double quote: quoted\"arg")
 }
+
+func Test_featuresStrToMap(t *testing.T) {
+	str := "shell_v2,cmd,stat_v2,ls_v2,fixed_push_mkdir,apex,abb,fixed_push_symlink_timestamp,abb_exec,remount_shell,track_app,sendrecv_v2,sendrecv_v2_brotli,sendrecv_v2_lz4,sendrecv_v2_zstd,sendrecv_v2_dry_run_send,openscreen_mdns,delayed_ack"
+	features := featuresStrToMap(str)
+	assert.Equal(t, len(features), 18)
+	// for k, _ := range features {
+	// 	fmt.Println(k)
+	// }
+}
