@@ -143,12 +143,16 @@ func (s *FileService) PullFile(remotePath, localPath string, handler func(total,
 
 	// copy with progress
 	// NOTE: optimize memory cost
-	var maxWriteSize int
-	if size < 1024*1024 {
-		maxWriteSize = 128 * 1024
-	} else {
-		maxWriteSize = 1024 * 1024
-	}
+	// tested on Android 5.1~9, use trunk size >= 64KB, lead to a very fast but invalid push
+	// but on Android 14, test with 1MB chunk size is fine, a litter faster than 64KB
+	maxWriteSize := wire.SyncMaxChunkSize
+	/*
+		if size < 1024*1024 {
+			maxWriteSize = 128 * 1024
+		} else {
+			maxWriteSize = 1024 * 1024
+		}
+	*/
 
 	chunk := make([]byte, maxWriteSize)
 	startTime := time.Now()
@@ -179,7 +183,7 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 	if err != nil {
 		return fmt.Errorf("stat remote file %s: %w", localPath, err)
 	}
-	size := int(info.Size())
+	// size := int(info.Size())
 	perms := info.Mode().Perm()
 	mtime := info.ModTime()
 
@@ -199,12 +203,14 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 
 	// copy with progress
 	// NOTE: optimize memory cost
-	var maxWriteSize int
-	if size < 1024*1024 {
-		maxWriteSize = 128 * 1024
-	} else {
-		maxWriteSize = 1024 * 1024
-	}
+	maxWriteSize := wire.SyncMaxChunkSize
+	/*
+		if size < 1024*1024 {
+			maxWriteSize = 128 * 1024
+		} else {
+			maxWriteSize = 1024 * 1024
+		}
+	*/
 
 	chunk := make([]byte, maxWriteSize)
 	for {

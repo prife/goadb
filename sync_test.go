@@ -93,11 +93,8 @@ func TestDeviceFeatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println("host features: ", string(features))
+	fmt.Println("host features: ", features)
 	d := adbclient.Device(adb.AnyDevice())
-
-	// Android 14
-	// shell_v2,cmd,stat_v2,ls_v2,fixed_push_mkdir,apex,abb,fixed_push_symlink_timestamp,abb_exec,remount_shell,track_app,sendrecv_v2,sendrecv_v2_brotli,sendrecv_v2_lz4,sendrecv_v2_zstd,sendrecv_v2_dry_run_send,openscreen_mdns,delayed_ack
 	fmt.Println(d.DeviceFeatures())
 }
 
@@ -196,5 +193,16 @@ func TestDevice_Mkdirs_PermissionDeny(t *testing.T) {
 			return
 		}
 		assert.Contains(t, line, "Permission denied")
+	}
+}
+
+func TestDevice_PushFile(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.PushFile("/Users/zhongkaizhu/Downloads/test.zip", "/sdcard/test.zip",
+		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

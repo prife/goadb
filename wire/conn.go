@@ -12,7 +12,7 @@ const (
 	// on messages.
 	MaxMessageLength = 255
 	// Chunks cannot be longer than 64k.
-	SyncMaxChunkSize = 1024 * 1024
+	SyncMaxChunkSize = 64 * 1024
 
 	// StatusCodes are returned by the server. If the code indicates failure, the next message will be the error.
 	StatusSuccess  string = "OKAY"
