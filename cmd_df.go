@@ -76,7 +76,7 @@ var (
 	//                                  Filesystem  Size     Used     Free   Blksize
 	//                                  /dev      956.5M   148.0K   956.3M   4096
 	//                                  /storage  956.5M     0.0K   956.5M   4096
-	dfV1Regrex = regexp.MustCompile(`(?m)^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+\d+s*$`)
+	dfV1Regrex = regexp.MustCompile(`(?m)^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+\d+\s*$`)
 )
 
 // unpackDfV1

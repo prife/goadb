@@ -43,7 +43,7 @@ func dfNumberToString(number float64) string {
 	}
 }
 
-func Test_unpackDfV1_Android51(t *testing.T) {
+func Test_unpackDfV1_A59_Android51(t *testing.T) {
 	var dfOutputV1_Android51 = `shell@A59:/ $ df
 Filesystem               Size     Used     Free   Blksize
 /dev                     1.8G   104.0K     1.8G   4096
@@ -60,7 +60,22 @@ Filesystem               Size     Used     Free   Blksize
 /mnt/cd-rom             20.5M    20.5M     0.0K   2048
 /mnt/shell/emulated     26.1G     8.1G    17.9G   4096
 `
+
 	entries := unpackDfV1([]byte(dfOutputV1_Android51))
+	assert.Equal(t, len(entries), 13)
+	for _, entry := range entries {
+		s := fmt.Sprintf("%-20s %8s %8s %8s", entry.FileSystem,
+			dfNumberToString(entry.Size), dfNumberToString(entry.Used), dfNumberToString(entry.Avail))
+		fmt.Println(s)
+		assert.Contains(t, dfOutputV1_Android51, s)
+	}
+}
+
+func Test_unpackDfV1_A33_Android51(t *testing.T) {
+	var dfOutputV1_Android51 = "/dev                   934.4M    76.0K   934.3M   4096\x0d\x0a/sys/fs/cgroup         934.4M    12.0K   934.4M   4096\x0d\x0a"
+
+	entries := unpackDfV1([]byte(dfOutputV1_Android51))
+	assert.Equal(t, len(entries), 2)
 	for _, entry := range entries {
 		s := fmt.Sprintf("%-20s %8s %8s %8s", entry.FileSystem,
 			dfNumberToString(entry.Size), dfNumberToString(entry.Used), dfNumberToString(entry.Avail))
@@ -158,6 +173,7 @@ tmpfs                                 2.8G     0  2.8G   0% /storage
 /data/media                            52G  3.4G   49G   7% /storage/emulated
 `
 	entries := unpackDfV2([]byte(dfOutputV2_Android7))
+	assert.Equal(t, len(entries), 12)
 	for _, entry := range entries {
 		s := fmt.Sprintf("%-37s %4s %5s %5s", entry.FileSystem,
 			dfV2NumberToString(entry.Size), dfV2NumberToString(entry.Used), dfV2NumberToString(entry.Avail) /*entry.MountedOn*/)
@@ -267,6 +283,7 @@ tmpfs             7.4G  16K  7.4G   1% /apex
 /dev/fuse         457G  25G  432G   6% /storage/emulated
 /dev/fuse         457G  25G  432G   6% /storage/emulated/999`
 	entries := unpackDfV2([]byte(data))
+	assert.Equal(t, len(entries), 51)
 	for _, entry := range entries {
 		s := fmt.Sprintf("%-17s %4s %4s %5s", entry.FileSystem,
 			dfV2NumberToString(entry.Size), dfV2NumberToString(entry.Used), dfV2NumberToString(entry.Avail) /*entry.MountedOn*/)
