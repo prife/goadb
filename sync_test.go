@@ -22,82 +22,6 @@ func init() {
 	testZip = path.Join(homePath, "Downloads/test.zip")
 }
 
-func newFs() (svr *adb.FileService, err error) {
-	d := adbclient.Device(adb.AnyDevice())
-	svr, err = d.NewFileService()
-	return
-}
-
-func TestFileService_PushFile(t *testing.T) {
-	fs, err := newFs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fs.Close()
-
-	f := "/Users/wetest/Downloads/RTR4-CN.pdf"
-	info, err := os.Stat(f)
-	if err != nil {
-		t.Fatal(t)
-	}
-
-	total := float64(info.Size())
-	sent := float64(0)
-	startTime := time.Now()
-	err = fs.PushFile(f, "/sdcard/RTR4-CN.pdf",
-		func(n uint64) {
-			sent = sent + float64(n)
-			percent := float64(sent) / float64(total) * 100
-			speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
-			fmt.Printf("push %.02f%% %f Bytes, %.02f MB/s\n", percent, sent, speedMBPerSecond)
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestFileService_PullFile(t *testing.T) {
-	fs, err := newFs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fs.Close()
-
-	err = fs.PullFile("/sdcard/WeChatMac.dmg", "WeChatMac.dmg",
-		func(total, sent int64, duration time.Duration, status string) {
-			percent := float64(sent) / float64(total) * 100
-			speedKBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / float64(duration)
-			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestFileService_PushDir(t *testing.T) {
-	fs, err := newFs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fs.Close()
-
-	pwd, _ := os.Getwd()
-
-	fmt.Println("workdir: ", pwd)
-
-	err = fs.PushDir(false, "/Users/wetest/workplace/udt/goadb/wire", "/sdcard/test/",
-		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
-			if err != nil {
-				fmt.Printf("[%d/%d] pushing %s, %%%.2f, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
-			} else {
-				fmt.Printf("[%d/%d] pushing %s, %%%.2f, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
-			}
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestDeviceFeatures(t *testing.T) {
 	features, err := adbclient.HostFeatures()
 	if err != nil {
@@ -206,6 +130,54 @@ func TestDevice_Mkdirs_PermissionDeny(t *testing.T) {
 	}
 }
 
+func TestDevice_Rm_NonExsitAndPermissionDeny(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Rm([]string{"/data/a", "/data/b", "/data/c"})
+	if err != nil {
+		fmt.Println(err)
+	}
+	assert.Nil(t, err)
+
+	err = d.Rm([]string{"/a", "/b", "/c"})
+	if err != nil {
+		fmt.Println(err)
+	}
+	assert.Nil(t, err)
+}
+
+func newFs() (svr *adb.FileService, err error) {
+	d := adbclient.Device(adb.AnyDevice())
+	svr, err = d.NewFileService()
+	return
+}
+
+func TestFileService_PushFile(t *testing.T) {
+	fs, err := newFs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	info, err := os.Stat(testZip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	total := float64(info.Size())
+	sent := float64(0)
+	startTime := time.Now()
+	err = fs.PushFile(testZip, "/sdcard/",
+		func(n uint64) {
+			sent = sent + float64(n)
+			percent := float64(sent) / float64(total) * 100
+			speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
+			fmt.Printf("push %.02f%% %f Bytes, %.02f MB/s\n", percent, sent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDevice_PushFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	err := d.PushFile(testZip, "/sdcard/test.zip",
@@ -222,6 +194,78 @@ func TestDevice_PushFileToDir(t *testing.T) {
 	err := d.PushFile(testZip, "/sdcard/",
 		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func listDir(d *adb.Device, path string) error {
+	entries, err := d.ListDirEntries(path)
+	if err != nil {
+		fmt.Println("list dir: ", err)
+		return err
+	}
+
+	list, err := entries.ReadAll()
+	if err != nil {
+		return err
+	}
+
+	for _, l := range list {
+		fmt.Println(l)
+	}
+	return nil
+}
+
+func TestDeviceListDir(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	entries, err := d.ListDirEntries("/non-exsited")
+	fmt.Println(entries, err)
+	if entries != nil {
+		fmt.Println(entries.Err())
+	}
+}
+
+func TestFileService_PushDir(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewFileService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	pwd, _ := os.Getwd()
+	fmt.Println("workdir: ", pwd)
+
+	_ = d.Rm([]string{"/sdcard/wire"})
+	listDir(d, "/sdcard/")
+
+	err = fs.PushDir(true, path.Join(pwd, "wire"), "/sdcard/",
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, %%%.2f, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %%%.2f, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFileService_PullFile(t *testing.T) {
+	fs, err := newFs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	err = fs.PullFile("/sdcard/WeChatMac.dmg", "WeChatMac.dmg",
+		func(total, sent int64, duration time.Duration, status string) {
+			percent := float64(sent) / float64(total) * 100
+			speedKBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / float64(duration)
+			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
 		})
 	if err != nil {
 		t.Fatal(err)

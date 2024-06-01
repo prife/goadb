@@ -40,10 +40,18 @@ func filterFileExistedError(resp []byte) (errs []error) {
 }
 
 func (c *Device) Mkdirs(list []string) error {
+	return c.MkdirsWithParent(list, false)
+}
+
+// adb shell mkdir [-p] <dir1> <dir2> ...
+func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 	var commonds []string
 	var commandsLen int
 
 	var errs []error
+	if withParent {
+		commonds = append(commonds, "-p")
+	}
 	for _, l := range list {
 		if commandsLen+len(l) > 32768 {
 			resp, err := c.RunCommand("mkdir", commonds...)
@@ -55,6 +63,9 @@ func (c *Device) Mkdirs(list []string) error {
 				errs = filterFileExistedError(resp)
 			}
 			commonds = make([]string, 0)
+			if withParent {
+				commonds = append(commonds, "-p")
+			}
 			commandsLen = 0
 		}
 
@@ -70,6 +81,48 @@ func (c *Device) Mkdirs(list []string) error {
 		if len(resp) > 0 {
 			errs2 := filterFileExistedError(resp)
 			errs = append(errs, errs2...)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// Rm run `adb shell rm -rf xx xx`
+// it returns is meaning less in most cases, so just ignore error is ok
+func (c *Device) Rm(list []string) error {
+	var commonds []string
+	var commandsLen int
+
+	var errs []error
+
+	commonds = append(commonds, "-rf")
+	for _, l := range list {
+		if commandsLen+len(l) > (32768 - 7) { // len('rm -rf ') == 6
+			resp, err := c.RunCommand("rm", commonds...)
+			if err != nil {
+				return err
+			}
+
+			if len(resp) > 0 {
+				errs = append(errs, errors.New(string(resp)))
+			}
+
+			// reset commands
+			commonds = make([]string, 0)
+			commonds = append(commonds, "-rf")
+			commandsLen = 0
+		}
+
+		commonds = append(commonds, l)
+		commandsLen = commandsLen + len(l) + 1 // and one space
+	}
+
+	if commandsLen > 0 {
+		resp, err := c.RunCommand("rm", commonds...)
+		if err != nil {
+			return err
+		}
+		if len(resp) > 0 {
+			errs = append(errs, errors.New(string(resp)))
 		}
 	}
 	return errors.Join(errs...)
@@ -114,7 +167,7 @@ func (c *Device) PushFile(local, remote string, handler func(totoalSize, sentSiz
 // 2.如果'dest-dir'路径存在，会创建'dest-dir/src-dir'，其内容与`src-dir`完全一致
 //
 // 本函数只支持情况2，既永远会在手机上创建src-dir
-func (c *Device) PushDir(local, remote string, onlySubFiles bool, handler SyncHandler) (err error) {
+func (c *Device) PushDir(local, remote string, withSrcDir bool, handler SyncHandler) (err error) {
 	linfo, err := os.Lstat(local)
 	if err != nil {
 		return err
@@ -146,5 +199,5 @@ func (c *Device) PushDir(local, remote string, onlySubFiles bool, handler SyncHa
 		return err
 	}
 	defer fconn.Close()
-	return fconn.PushDir(onlySubFiles, local, remote, handler)
+	return fconn.PushDir(withSrcDir, local, remote, handler)
 }

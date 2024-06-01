@@ -239,7 +239,7 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 
 type SyncHandler func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error)
 
-func (s *FileService) PushDir(onlySubFiles bool, localDir, remotePath string, handler SyncHandler) (err error) {
+func (s *FileService) PushDir(withSrcDir bool, localDir, remotePath string, handler SyncHandler) (err error) {
 	info, err := os.Lstat(localDir)
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func (s *FileService) PushDir(onlySubFiles bool, localDir, remotePath string, ha
 	remotePath = trimSuffixSlash(remotePath)
 	localDir = trimSuffixSlash(localDir)
 
-	if !onlySubFiles {
+	if withSrcDir {
 		remotePath = remotePath + "/" + path.Base(localDir)
 	}
 
