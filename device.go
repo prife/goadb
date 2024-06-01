@@ -237,7 +237,7 @@ func (c *Device) getSyncConn() (*FileService, error) {
 	}
 
 	// FIXME: refactor in soon
-	return &FileService{SyncConn: conn.(*wire.Conn).NewSyncConn()}, nil
+	return &FileService{SyncConn: wire.NewSyncConn(conn.(*wire.Conn))}, nil
 }
 
 func (c *Device) NewFileService() (*FileService, error) {

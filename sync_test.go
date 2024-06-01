@@ -151,7 +151,7 @@ func newFs() (svr *adb.FileService, err error) {
 	return
 }
 
-func TestFileService_PushFile(t *testing.T) {
+func TestFileService_PushFile_LargeFile(t *testing.T) {
 	fs, err := newFs()
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +166,7 @@ func TestFileService_PushFile(t *testing.T) {
 	total := float64(info.Size())
 	sent := float64(0)
 	startTime := time.Now()
-	err = fs.PushFile(testZip, "/sdcard/",
+	err = fs.PushFile(testZip, "/sdcard/test.zip",
 		func(n uint64) {
 			sent = sent + float64(n)
 			percent := float64(sent) / float64(total) * 100
@@ -176,6 +176,24 @@ func TestFileService_PushFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestFileService_PushFile_ToDir(t *testing.T) {
+	fs, err := newFs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	pwd, _ := os.Getwd()
+	localfile := path.Join(pwd, "sync.go")
+	_, err = os.Stat(localfile)
+	assert.Nil(t, err)
+
+	err = fs.PushFile(localfile, "/sdcard/", func(n uint64) {})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Is a directory")
+	fmt.Println(err)
 }
 
 func TestDevice_PushFile(t *testing.T) {
@@ -265,7 +283,7 @@ func TestFileService_PullFile(t *testing.T) {
 	}
 	defer fs.Close()
 
-	err = fs.PullFile("/sdcard/WeChatMac.dmg", "WeChatMac.dmg",
+	err = fs.PullFile("/sdcard/test.zip", "test.zip",
 		func(total, sent int64, duration time.Duration, status string) {
 			percent := float64(sent) / float64(total) * 100
 			speedKBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / float64(duration)

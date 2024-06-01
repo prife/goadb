@@ -143,7 +143,7 @@ func readSyncStatusFailureAsError(r io.Reader, buf []byte, req string) (string, 
 	}
 
 	status := string(buf[:4])
-	fmt.Println("<---status: ", status)
+	// fmt.Println("<---status: ", status)
 	if status == StatusSuccess {
 		return status, nil
 	}

@@ -204,12 +204,6 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 	}
 	defer localFile.Close()
 
-	// if remotePath is dir, just append src file name
-	rinfo, err := s.Stat(remotePath)
-	if err == nil && rinfo.Mode.IsDir() {
-		remotePath = remotePath + "/" + linfo.Name()
-	}
-
 	// open remote writer
 	writer, err := s.Send(remotePath, perms, mtime)
 	if err != nil {
@@ -267,7 +261,7 @@ func (s *FileService) PushDir(withSrcDir bool, localDir, remotePath string, hand
 			return nil
 		}
 		// ignore special file
-		if d.Type().IsRegular() || d.IsDir() {
+		if d.Type().IsRegular() {
 			totalFiles++
 		}
 		return nil

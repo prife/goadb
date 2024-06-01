@@ -128,13 +128,13 @@ func (c *Device) Rm(list []string) error {
 	return errors.Join(errs...)
 }
 
-func (c *Device) PushFile(local, remote string, handler func(totoalSize, sentSize int64, percent, speedMBPerSecond float64)) error {
-	linfo, err := os.Lstat(local)
+func (c *Device) PushFile(localPath, remotePath string, handler func(totoalSize, sentSize int64, percent, speedMBPerSecond float64)) error {
+	linfo, err := os.Lstat(localPath)
 	if err != nil {
 		return err
 	}
 	if !linfo.Mode().IsRegular() {
-		return fmt.Errorf("not regular file: %s", local)
+		return fmt.Errorf("not regular file: %s", localPath)
 	}
 
 	// features, err := c.DeviceFeatures()
@@ -148,10 +148,16 @@ func (c *Device) PushFile(local, remote string, handler func(totoalSize, sentSiz
 	}
 	defer fconn.Close()
 
+	// if remotePath is dir, just append src file name
+	rinfo, err := fconn.Stat(remotePath)
+	if err == nil && rinfo.Mode.IsDir() {
+		remotePath = remotePath + "/" + linfo.Name()
+	}
+
 	total := linfo.Size()
 	sent := float64(0)
 	startTime := time.Now()
-	err = fconn.PushFile(local, remote, func(n uint64) {
+	err = fconn.PushFile(localPath, remotePath, func(n uint64) {
 		sent = sent + float64(n)
 		percent := float64(sent) / float64(total) * 100
 		speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
