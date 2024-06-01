@@ -101,7 +101,7 @@ func (conn *FileService) Recv(path string) (io.ReadCloser, error) {
 // The file will be created with permissions specified by mode.
 // The file's modified time will be set to mtime, unless mtime is 0, in which case the time the writer is
 // closed will be used.
-func (conn *FileService) Send(path string, mode os.FileMode, mtime time.Time) (io.WriteCloser, error) {
+func (conn *FileService) Send(path string, mode os.FileMode, mtime time.Time) (*syncFileWriter, error) {
 	if err := conn.SendOctetString(ID_SEND); err != nil {
 		return nil, err
 	}
@@ -195,17 +195,16 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 	defer localFile.Close()
 
 	// if remotePath is dir, just append src file name
-	rinfo, err := s.Stat(remotePath)
-	if err == nil && rinfo.Mode.IsDir() {
-		remotePath = remotePath + "/" + linfo.Name()
-	}
+	// rinfo, err := s.Stat(remotePath)
+	// if err == nil && rinfo.Mode.IsDir() {
+	// 	remotePath = remotePath + "/" + linfo.Name()
+	// }
 
 	// open remote writer
 	writer, err := s.Send(remotePath, perms, mtime)
 	if err != nil {
-		return fmt.Errorf("write remote file %s: %w", remotePath, err)
+		return fmt.Errorf("open write %s: %w", remotePath, err)
 	}
-	defer writer.Close()
 
 	// copy with progress
 	// NOTE: optimize memory cost
@@ -225,7 +224,7 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 			return err
 		}
 		if n == 0 {
-			return nil
+			return writer.CopyDone()
 		}
 		_, err = writer.Write(chunk[0:n])
 		if err != nil {
@@ -239,6 +238,8 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 
 type SyncHandler func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error)
 
+// PushDir push dir to android
+// 如果localDir含有子目录，该Api不能保证一定将子目录push到目的地址，该API不会创建目录
 func (s *FileService) PushDir(withSrcDir bool, localDir, remotePath string, handler SyncHandler) (err error) {
 	info, err := os.Lstat(localDir)
 	if err != nil {

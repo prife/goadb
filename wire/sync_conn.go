@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -116,54 +117,41 @@ func (s *SyncConn) ReadNextChunkSize() (int32, error) {
 // If the status is success, doesn't read the message.
 // req is just used to populate the AdbError, and can be nil.
 func readSyncStatusFailureAsError(r io.Reader, buf []byte, req string) (string, error) {
-	// read 4 bytes
-	if len(buf) < 4 {
-		buf = make([]byte, 4)
+	// read 8 bytes
+	if len(buf) < 8 {
+		buf = make([]byte, 8)
 	}
-	n, err := io.ReadFull(r, buf[0:4])
+
+	n, err := io.ReadFull(r, buf[0:8])
 	if err == io.ErrUnexpectedEOF {
 		return "", fmt.Errorf("error reading status for %s: %w", req, errIncompleteMessage(req, n, 4))
 	} else if err != nil {
 		return "", fmt.Errorf("error reading status for %s: %w", req, err)
 	}
 
-	status := string(buf[:n])
-	if isFailureStatus(status) {
-		msg, err := readSyncMessage(r, buf)
-		if err != nil {
-			return "", fmt.Errorf("server returned error for %s, but couldn't read the error message, %w", req, err)
+	status := string(buf[:4])
+	fmt.Println("<---status: ", status)
+	if status == StatusSuccess {
+		return status, nil
+	}
+
+	// reads a 4-byte length from r, then reads length bytes
+	length := binary.LittleEndian.Uint32(buf[4:8])
+	if length > 0 {
+		if length > uint32(len(buf)) {
+			buf = make([]byte, length)
 		}
-
-		return "", adbServerError(req, string(msg))
+		_, err = io.ReadFull(r, buf[:length])
+		if err != nil {
+			return status, fmt.Errorf("read status body error: %w", err)
+		}
 	}
 
-	return status, nil
-}
-
-// readSyncMessage reads a 4-byte length from r, then reads length bytes and returns them.
-func readSyncMessage(r io.Reader, buf []byte) ([]byte, error) {
-	// read 4 byte as FFFF string, means a 16bit number
-	if len(buf) < 4 {
-		buf = make([]byte, 4)
-	}
-	n, err := io.ReadFull(r, buf[:4])
-	if err != nil {
-		return nil, errIncompleteMessage("length", n, 4)
+	if status == StatusFailure {
+		return status, errors.New(string(buf[:length]))
 	}
 
-	// parse length
-	length := binary.LittleEndian.Uint32(buf[:4])
-	// read length buf
-	if length > uint32(len(buf)) {
-		buf = make([]byte, length)
-	}
-	n, err = io.ReadFull(r, buf[:length])
-	if err == io.ErrUnexpectedEOF {
-		return buf[:n], errIncompleteMessage("message data", n, int(length))
-	} else if err != nil {
-		return buf[:n], fmt.Errorf("error reading message data: %w", err)
-	}
-	return buf[:n], nil
+	return status, fmt.Errorf("unknown reason %s", status)
 }
 
 // SendOctetString sends a 4-byte string.

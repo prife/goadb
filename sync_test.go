@@ -180,7 +180,15 @@ func TestFileService_PushFile(t *testing.T) {
 
 func TestDevice_PushFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
-	err := d.PushFile(testZip, "/sdcard/test.zip",
+	pwd, _ := os.Getwd()
+	err := d.PushFile(path.Join(pwd, "sync.go"), "/sdcard/",
+		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = d.PushFile(testZip, "/sdcard/test.zip",
 		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
 		})
@@ -228,20 +236,23 @@ func TestDeviceListDir(t *testing.T) {
 }
 
 func TestFileService_PushDir(t *testing.T) {
+	pwd, _ := os.Getwd()
+	fmt.Println("workdir: ", pwd)
+
+	// clear remote dir
 	d := adbclient.Device(adb.AnyDevice())
+	_ = d.Rm([]string{"/sdcard/wire"})
+	// listDir(d, "/sdcard/")
+
+	// create connection
 	fs, err := d.NewFileService()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer fs.Close()
 
-	pwd, _ := os.Getwd()
-	fmt.Println("workdir: ", pwd)
-
-	_ = d.Rm([]string{"/sdcard/wire"})
-	listDir(d, "/sdcard/")
-
-	err = fs.PushDir(true, path.Join(pwd, "wire"), "/sdcard/",
+	// push directory
+	err = fs.PushDir(true, path.Join(pwd, "wire/"), "/sdcard/",
 		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
 			if err != nil {
 				fmt.Printf("[%d/%d] pushing %s, %%%.2f, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())

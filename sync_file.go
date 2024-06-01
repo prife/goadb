@@ -69,9 +69,7 @@ type syncFileWriter struct {
 	syncConn *wire.SyncConn
 }
 
-var _ io.WriteCloser = &syncFileWriter{}
-
-func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) io.WriteCloser {
+func newSyncFileWriter(s *wire.SyncConn, mtime time.Time) *syncFileWriter {
 	return &syncFileWriter{
 		mtime:    mtime,
 		syncConn: s,
@@ -107,7 +105,7 @@ func (w *syncFileWriter) Write(buf []byte) (n int, err error) {
 	return written, nil
 }
 
-func (w *syncFileWriter) Close() error {
+func (w *syncFileWriter) CopyDone() error {
 	if w.mtime.IsZero() {
 		w.mtime = time.Now()
 	}
@@ -119,8 +117,13 @@ func (w *syncFileWriter) Close() error {
 		return fmt.Errorf("error writing file modification time: %w", err)
 	}
 
-	if status, err := w.syncConn.ReadStatus(""); err != nil || status != wire.StatusSuccess {
+	if status, err := w.syncConn.ReadStatus(""); err != nil {
 		return fmt.Errorf("error reading status, should receive 'ID_OKAY': %w", err)
+	} else if status == wire.StatusSuccess {
+		return nil
+	} else {
+		fmt.Println("sync-send with resp status: ", status)
 	}
+
 	return nil
 }

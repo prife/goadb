@@ -201,7 +201,7 @@ func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
 // by perms if necessary, and returns a writer that writes to the file.
 // The files modification time will be set to mtime when the WriterCloser is closed. The zero value
 // is TimeOfClose, which will use the time the Close method is called as the modification time.
-func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (io.WriteCloser, error) {
+func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (*syncFileWriter, error) {
 	conn, err := c.getSyncConn()
 	if err != nil {
 		return nil, wrapClientError(err, c, "OpenWrite(%s)", path)

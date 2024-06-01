@@ -270,7 +270,7 @@ func push(showProgress bool, localPath, remotePath string, device adb.DeviceDesc
 		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
 		return 1
 	}
-	defer writer.Close()
+	defer writer.CopyDone()
 
 	if err := copyWithProgressAndStats(writer, localFile, size, showProgress); err != nil {
 		fmt.Fprintln(os.Stderr, "error pushing file:", err)
