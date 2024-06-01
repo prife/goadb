@@ -181,6 +181,8 @@ func TestFileService_PushFile(t *testing.T) {
 func TestDevice_PushFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	pwd, _ := os.Getwd()
+
+	// push to dir
 	err := d.PushFile(path.Join(pwd, "sync.go"), "/sdcard/",
 		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
@@ -188,18 +190,9 @@ func TestDevice_PushFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = d.PushFile(testZip, "/sdcard/test.zip",
-		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
-			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
 
-func TestDevice_PushFileToDir(t *testing.T) {
-	d := adbclient.Device(adb.AnyDevice())
-	err := d.PushFile(testZip, "/sdcard/",
+	// push to file
+	err = d.PushFile(testZip, "/sdcard/test.zip",
 		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
 		})

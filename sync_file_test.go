@@ -15,7 +15,7 @@ import (
 
 func TestReadNextChunk(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
-		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
+		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE\000\000\000\000"))
 
 	// Read 1st chunk
 	reader, err := s.ReadNextChunkSize()
@@ -52,7 +52,7 @@ func TestReadNextChunkInvalidChunkId(t *testing.T) {
 
 func TestReadMultipleCalls(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
-		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
+		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE\000\000\000\000"))
 	reader := newSyncFileReader(s)
 
 	firstByte := make([]byte, 1)
@@ -76,7 +76,7 @@ func TestReadMultipleCalls(t *testing.T) {
 
 func TestReadAll(t *testing.T) {
 	s := wire.NewSyncConn(makeMockConnStr(
-		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
+		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE\000\000\000\000"))
 	reader := newSyncFileReader(s)
 	buf := make([]byte, 20)
 	_, err := io.ReadFull(reader, buf)
@@ -93,7 +93,7 @@ func TestReadError(t *testing.T) {
 }
 
 func TestReadEmpty(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(ID_DONE))
+	s := wire.NewSyncConn(makeMockConnStr("DONE\000\000\000\000"))
 	r := newSyncFileReader(s)
 	data, err := io.ReadAll(r)
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func TestReadEmpty(t *testing.T) {
 	// Multiple read calls that return EOF is a valid case.
 	for i := 0; i < 5; i++ {
 		data, err := io.ReadAll(r)
-		assert.ErrorIs(t, err, io.EOF)
+		assert.NoError(t, err) // io.ReadAll treat an EOF to nil
 		assert.Empty(t, data)
 	}
 }
@@ -120,7 +120,7 @@ func TestReadErrorNotFound(t *testing.T) {
 
 func TestFileWriterWriteSingleChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := wire.NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	n, err := writer.Write([]byte("hello"))
@@ -132,7 +132,7 @@ func TestFileWriterWriteSingleChunk(t *testing.T) {
 
 func TestFileWriterWriteMultiChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := wire.NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	n, err := writer.Write([]byte("hello"))
@@ -148,7 +148,7 @@ func TestFileWriterWriteMultiChunk(t *testing.T) {
 
 func TestFileWriterWriteLargeChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := wire.NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	// Send just enough data to get 2 chunks.
@@ -176,7 +176,7 @@ func TestFileWriterWriteLargeChunk(t *testing.T) {
 func TestFileWriterCloseEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := wire.NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, mtime)
 
 	assert.NoError(t, writer.CopyDone())
@@ -187,7 +187,7 @@ func TestFileWriterCloseEmpty(t *testing.T) {
 func TestFileWriterWriteClose(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := wire.NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, mtime)
 
 	writer.Write([]byte("hello"))
@@ -198,7 +198,7 @@ func TestFileWriterWriteClose(t *testing.T) {
 
 func TestFileWriterCloseAutoMtime(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := wire.NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, MtimeOfClose)
 
 	assert.NoError(t, writer.CopyDone())

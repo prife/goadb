@@ -1,13 +1,12 @@
 package wire
 
 import (
+	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -27,7 +26,7 @@ type SyncConn struct {
 }
 
 func NewSyncConn(r net.Conn) *SyncConn {
-	return &SyncConn{r, make([]byte, 4), make([]byte, 4)}
+	return &SyncConn{r, make([]byte, 8), make([]byte, 8)}
 }
 
 // ReadStatus reads a 4-byte status string and returns it.
@@ -42,15 +41,6 @@ func (s *SyncConn) ReadInt32() (int32, error) {
 	return int32(binary.LittleEndian.Uint32(s.rbuf)), nil
 }
 
-func (s *SyncConn) ReadFileMode() (os.FileMode, error) {
-	var value uint32
-	err := binary.Read(s, binary.LittleEndian, &value)
-	if err != nil {
-		return 0, fmt.Errorf("error reading filemode from sync scanner: %w", err)
-	}
-	return ParseFileModeFromAdb(value), nil
-
-}
 func (s *SyncConn) ReadTime() (time.Time, error) {
 	seconds, err := s.ReadInt32()
 	if err != nil {
@@ -93,23 +83,46 @@ func (s *SyncConn) ReadBytes(buf []byte) (out []byte, err error) {
 
 // ReadNextChunkSize read the 4-bytes length of next chunk of data,
 // returns io.EOF if the last chunk has been read.
+//
+//	struct __attribute__((packed)) {
+//		uint32_t id;
+//		uint32_t size;
+//	} data; // followed by `size` bytes of data.
+//
+//  struct __attribute__((packed)) {
+// 	    uint32_t id;
+// 	    uint32_t msglen;
+//  } status; // followed by `msglen` bytes of error message, if id == ID_FAIL.
+
 func (s *SyncConn) ReadNextChunkSize() (int32, error) {
-	status, err := s.ReadStatus("read-chunk")
+	_, err := io.ReadFull(s, s.rbuf[:8])
 	if err != nil {
-		if strings.Contains(err.Error(), "No such file or directory") {
-			err = fmt.Errorf("%w: no such file or directory", ErrFileNoExist)
-		}
-		return 0, err
+		return 0, fmt.Errorf("sync read: %w", err)
 	}
 
-	switch status {
+	id := string(s.rbuf[:4])
+	size := int32(binary.LittleEndian.Uint32(s.rbuf[4:8]))
+
+	switch id {
 	case StatusSyncData:
-		return s.ReadInt32()
+		return size, nil
 	case StatusSyncDone:
 		return 0, io.EOF
+	case StatusFailure:
+		buf := make([]byte, size)
+		_, err := io.ReadFull(s, buf[:size])
+		if err != nil {
+			return 0, fmt.Errorf("sync read: %w", err)
+		}
+		if bytes.Contains(buf[:size], []byte("No such file or directory")) {
+			err = fmt.Errorf("%w: no such file or directory", ErrFileNoExist)
+		} else {
+			err = adbServerError("read-chunk", string(buf[:size]))
+		}
+		return 0, err
 	default:
 		return 0, fmt.Errorf("%w: expected chunk id '%s' or '%s', but got '%s'",
-			ErrAssertion, StatusSyncData, StatusSyncDone, []byte(status))
+			ErrAssertion, StatusSyncData, StatusSyncDone, []byte(id))
 	}
 }
 
@@ -148,7 +161,7 @@ func readSyncStatusFailureAsError(r io.Reader, buf []byte, req string) (string, 
 	}
 
 	if status == StatusFailure {
-		return status, errors.New(string(buf[:length]))
+		return status, adbServerError(req, string(buf[:length]))
 	}
 
 	return status, fmt.Errorf("unknown reason %s", status)

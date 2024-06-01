@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"io/fs"
@@ -37,6 +38,43 @@ type FileService struct {
 	*wire.SyncConn
 }
 
+//	struct __attribute__((packed)) {
+//		uint32_t id;
+//		uint32_t mode;
+//		uint32_t size;
+//		uint32_t mtime;
+//	} stat_v1;
+func unpackLstatV1(rbuf []byte) (d *DirEntry, err error) {
+	id := rbuf[:4]
+	if string(id) != ID_LSTAT_V1 {
+		err = fmt.Errorf("%w: expected stat ID 'STAT', but got '%s'", wire.ErrAssertion, id)
+		return
+	}
+	mode_ := binary.LittleEndian.Uint32(rbuf[4:8])
+	mode := wire.ParseFileModeFromAdb(mode_)
+	size := int32(binary.LittleEndian.Uint32(rbuf[8:12]))
+	mtime_ := int32(binary.LittleEndian.Uint32(rbuf[12:16]))
+	mtime := time.Unix(int64(mtime_), 0).UTC()
+	// adb doesn't indicate when a file doesn't exist, but will return all zeros.
+	// Theoretically this could be an actual file, but that's very unlikely.
+	if mode == os.FileMode(0) && size == 0 && mtime == zeroTime {
+		err = fmt.Errorf("%w: file doesn't exist", wire.ErrFileNoExist)
+		return
+	}
+
+	d = &DirEntry{Mode: mode, Size: size, ModifiedAt: mtime}
+	return
+}
+
+func (conn *FileService) finishLstatV1() (d *DirEntry, err error) {
+	var rbuf [16]byte
+	_, err = io.ReadFull(conn, rbuf[:])
+	if err != nil {
+		return nil, err
+	}
+	return unpackLstatV1(rbuf[:])
+}
+
 func (conn *FileService) Stat(path string) (*DirEntry, error) {
 	if err := conn.SendOctetString(ID_LSTAT_V1); err != nil {
 		return nil, err
@@ -45,35 +83,7 @@ func (conn *FileService) Stat(path string) (*DirEntry, error) {
 		return nil, err
 	}
 
-	id, err := conn.ReadStatus("stat")
-	if err != nil {
-		return nil, err
-	}
-	if id != ID_LSTAT_V1 {
-		return nil, fmt.Errorf("%w: expected stat ID 'STAT', but got '%s'", wire.ErrAssertion, id)
-	}
-
-	mode, err := conn.ReadFileMode()
-	if err != nil {
-		return nil, fmt.Errorf("error reading file mode: %w", err)
-	}
-	size, err := conn.ReadInt32()
-	if err != nil {
-		return nil, fmt.Errorf("error reading file size: %w", err)
-	}
-	mtime, err := conn.ReadTime()
-	if err != nil {
-		err = fmt.Errorf("error reading file time: %w", err)
-		return nil, err
-	}
-
-	// adb doesn't indicate when a file doesn't exist, but will return all zeros.
-	// Theoretically this could be an actual file, but that's very unlikely.
-	if mode == os.FileMode(0) && size == 0 && mtime == zeroTime {
-		return nil, fmt.Errorf("%w: file doesn't exist", wire.ErrFileNoExist)
-	}
-
-	return &DirEntry{Mode: mode, Size: size, ModifiedAt: mtime}, nil
+	return conn.finishLstatV1()
 }
 
 func (conn *FileService) List(path string) (entries *DirEntries, err error) {
@@ -195,10 +205,10 @@ func (s *FileService) PushFile(localPath, remotePath string, handler func(n uint
 	defer localFile.Close()
 
 	// if remotePath is dir, just append src file name
-	// rinfo, err := s.Stat(remotePath)
-	// if err == nil && rinfo.Mode.IsDir() {
-	// 	remotePath = remotePath + "/" + linfo.Name()
-	// }
+	rinfo, err := s.Stat(remotePath)
+	if err == nil && rinfo.Mode.IsDir() {
+		remotePath = remotePath + "/" + linfo.Name()
+	}
 
 	// open remote writer
 	writer, err := s.Send(remotePath, perms, mtime)
