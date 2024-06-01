@@ -17,6 +17,7 @@ const (
 	PropProductModel           = "ro.product.model"
 	PropProductManu            = "ro.product.manufacturer"
 	PropProductCpuAbi          = "ro.product.cpu.abi"
+	PropBuildVersionSdk        = "ro.build.version.sdk"         // api level
 	PropRroductBuildVersionSdk = "ro.product.build.version.sdk" // api level
 	PropBuildVersionRelease    = "ro.build.version.release"     // android os version
 	// for vendor
@@ -77,7 +78,7 @@ func (a AndroidProperties) GetMapValue(key string) (string, error) {
 	if v, ok := a[key]; ok {
 		return v, nil
 	} else {
-		return "", fmt.Errorf("getprop %s: %w", PropRroductBuildVersionSdk, ErrNotFound)
+		return "", fmt.Errorf("getprop %s: %w", key, ErrNotFound)
 	}
 }
 
@@ -102,9 +103,12 @@ func (a AndroidProperties) ProductModel() (string, error) {
 }
 
 func (a AndroidProperties) SdkLevel() (int, error) {
-	sdkstr, err := a.GetMapValue(PropRroductBuildVersionSdk)
+	sdkstr, err := a.GetMapValue(PropBuildVersionSdk)
 	if err != nil {
-		return 0, err
+		sdkstr, err = a.GetMapValue(PropRroductBuildVersionSdk)
+		if err != nil {
+			return -1, fmt.Errorf("neither %s nor %s prop found", PropBuildVersionSdk, PropRroductBuildVersionSdk)
+		}
 	}
 	v, err := strconv.Atoi(sdkstr)
 	if err != nil {
