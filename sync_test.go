@@ -217,11 +217,12 @@ func TestDevice_PushFile(t *testing.T) {
 }
 
 func listDir(d *adb.Device, path string) error {
-	dr, err := d.OpenDirReader(path)
+	sc, dr, err := d.OpenDirReader(path)
 	if err != nil {
 		fmt.Println("list dir: ", err)
 		return err
 	}
+	defer sc.Close()
 
 	list, err := dr.ReadDir(-1)
 	if err != nil {
@@ -234,9 +235,24 @@ func listDir(d *adb.Device, path string) error {
 	return nil
 }
 
+func TestDeviceOpenDirReader(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	sc, dr, err := d.OpenDirReader("/sdcard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer sc.Close()
+	list, err := dr.ReadDir(-1)
+	assert.Equal(t, err, io.EOF)
+	for _, l := range list {
+		fmt.Println(l)
+	}
+}
+
 func TestDeviceOpenDirReader_NonExsited(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
-	dr, err := d.OpenDirReader("/non-exsited")
+	_, dr, err := d.OpenDirReader("/non-exsited")
 	assert.ErrorIs(t, err, wire.ErrFileNoExist)
 	fmt.Println(dr, err)
 }

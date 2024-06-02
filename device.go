@@ -166,18 +166,18 @@ func (c *Device) Remount() (string, error) {
 	return string(resp), wrapClientError(err, c, "Remount")
 }
 
-func (c *Device) OpenDirReader(path string) (*wire.SyncDirReader, error) {
+func (c *Device) OpenDirReader(path string) (*wire.SyncConn, *wire.SyncDirReader, error) {
 	conn, err := c.NewSyncConn()
 	if err != nil {
-		return nil, wrapClientError(err, c, "OpenDirReader(%s)", path)
+		return nil, nil, wrapClientError(err, c, "OpenDirReader(%s)", path)
 	}
 
 	dr, err := conn.SendList(path)
 	if err != nil {
 		conn.Close()
-		return nil, wrapClientError(err, c, "OpenDirReader(%s)", path)
+		return nil, nil, wrapClientError(err, c, "OpenDirReader(%s)", path)
 	}
-	return dr, nil
+	return conn, dr, nil
 }
 
 func (c *Device) Stat(path string) (*wire.DirEntry, error) {

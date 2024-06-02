@@ -182,15 +182,20 @@ func (s *SyncConn) Stat(path string) (*DirEntry, error) {
 
 // SendList
 // Android 5.1上，打开一个不存在文件夹，List协议并不会报错，且对其获取DENT时直接返回DONE
-// 为了确保函数行为正常，先对起执行STAT
-func (s *SyncConn) SendList(path string) (entries *SyncDirReader, err error) {
-	d, err := s.Stat(path)
+// 为了确保函数行为正常，先执行STAT
+func (s *SyncConn) SendList(path string) (dr *SyncDirReader, err error) {
+	_, err = s.Stat(path)
 	if err != nil {
 		return
 	}
-	if !d.Mode.IsDir() {
-		return
-	}
+	/*
+		// 'd' maybe a soft link. for example: /sdcard -> /storage/emulated/
+		if !d.Mode.IsDir() {
+			err = fmt.Errorf("not dir: %s", path)
+			return
+		}
+	*/
+
 	if err = s.SendRequest([]byte(ID_LIST_V1), []byte(path)); err != nil {
 		return
 	}

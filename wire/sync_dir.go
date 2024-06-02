@@ -34,7 +34,8 @@ func (dr *SyncDirReader) ReadDir(n int) (entries []*DirEntry, err error) {
 		return nil, io.EOF
 	}
 
-	for i := 0; i < n; i++ {
+	// to iterator when n = -1, just cast it to uint32 in loop
+	for i := uint32(0); i < uint32(n); i++ {
 		entry, done, err2 := dr.syncConn.readDentV1()
 		if err2 != nil {
 			err = err2
@@ -42,6 +43,7 @@ func (dr *SyncDirReader) ReadDir(n int) (entries []*DirEntry, err error) {
 		}
 		if done {
 			dr.eof = true
+			err = io.EOF
 			return
 		}
 
@@ -49,10 +51,4 @@ func (dr *SyncDirReader) ReadDir(n int) (entries []*DirEntry, err error) {
 	}
 
 	return
-}
-
-// Close closes the connection to the adb.
-// Next() will call Close() before returning false.
-func (entries *SyncDirReader) Close() error {
-	return entries.syncConn.Close()
 }
