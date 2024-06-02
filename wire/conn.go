@@ -87,7 +87,7 @@ var _ Scanner = &Conn{}
 // The connection must already have been switched (by sending the sync command
 // to a specific device), or the return connection will return an error.
 func (c *Conn) NewSyncConn() *SyncConn {
-	return &SyncConn{c.Conn, make([]byte, 4), make([]byte, 4)}
+	return &SyncConn{c.Conn, make([]byte, 8), make([]byte, 8)}
 }
 
 func (s *Conn) SendMessage(msg []byte) error {

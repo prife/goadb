@@ -89,7 +89,7 @@ func TestReadIncompleteMessage(t *testing.T) {
 	msg, err := readMessage(s, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errIncompleteMessage("message data", 3, 5), err)
-	assert.Equal(t, "hel\000\000", string(msg))
+	assert.Equal(t, "hel", string(msg))
 	assertEof(t, s)
 }
 
@@ -143,7 +143,8 @@ func TestWriteEmptyMessage(t *testing.T) {
 }
 
 func newTestSender() (Sender, *mockConn) {
-	w := new(mockConn)
+	var buf bytes.Buffer
+	w := makeMockConnBuf(&buf)
 	return NewConn(w), w
 }
 
@@ -152,21 +153,21 @@ type mockConn struct {
 	*bytes.Buffer
 }
 
-func makeMockConnStr(str string) net.Conn {
+func makeMockConnStr(str string) *mockConn {
 	w := &mockConn{
 		Buffer: bytes.NewBufferString(str),
 	}
 	return w
 }
 
-func makeMockConnBuf(buf *bytes.Buffer) net.Conn {
+func makeMockConnBuf(buf *bytes.Buffer) *mockConn {
 	w := &mockConn{
 		Buffer: buf,
 	}
 	return w
 }
 
-func makeMockConnBytes(b []byte) net.Conn {
+func makeMockConnBytes(b []byte) *mockConn {
 	w := &mockConn{
 		Buffer: bytes.NewBuffer(b),
 	}
