@@ -202,7 +202,7 @@ func (s *SyncConn) SendList(path string) (dr *SyncDirReader, err error) {
 	return &SyncDirReader{syncConn: s}, nil
 }
 
-func (s *SyncConn) Recv(path string) (io.ReadCloser, error) {
+func (s *SyncConn) Recv(path string) (*SyncFileReader, error) {
 	if err := s.SendRequest([]byte(ID_RECV), []byte(path)); err != nil {
 		return nil, err
 	}
@@ -366,7 +366,6 @@ func (s *SyncConn) PullFile(remotePath, localPath string, handler func(total, se
 	if err != nil {
 		return fmt.Errorf("recv remote file %s: %w", remotePath, err)
 	}
-	defer reader.Close()
 
 	// copy with progress
 	// NOTE: optimize memory cost

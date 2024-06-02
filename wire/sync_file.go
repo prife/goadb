@@ -6,24 +6,24 @@ import (
 	"time"
 )
 
-// syncFileReader wraps a SyncConn that has requested to receive a file.
-type syncFileReader struct {
+// SyncFileReader wraps a SyncConn that has requested to receive a file.
+type SyncFileReader struct {
 	// Reader used to read data from the adb connection.
 	syncConn *SyncConn
 	toRead   int
 	eof      bool
 }
 
-var _ io.ReadCloser = &syncFileReader{}
+var _ io.Reader = &SyncFileReader{}
 
-func newSyncFileReader(s *SyncConn) (r io.ReadCloser) {
-	r = &syncFileReader{
+func newSyncFileReader(s *SyncConn) (r *SyncFileReader) {
+	r = &SyncFileReader{
 		syncConn: s,
 	}
 	return
 }
 
-func (r *syncFileReader) Read(buf []byte) (n int, err error) {
+func (r *SyncFileReader) Read(buf []byte) (n int, err error) {
 	if r.eof {
 		return 0, io.EOF
 	}
@@ -52,11 +52,6 @@ func (r *syncFileReader) Read(buf []byte) (n int, err error) {
 	return
 }
 
-// syncFileReader should not close underlying syncConn
-func (r *syncFileReader) Close() error {
-	return nil
-}
-
 // SyncFileWriter wraps a SyncConn that has requested to send a file.
 type SyncFileWriter struct {
 	// The modification time to write in the footer.
@@ -66,6 +61,8 @@ type SyncFileWriter struct {
 	// Reader used to read data from the adb connection.
 	syncConn *SyncConn
 }
+
+var _ io.Writer = &SyncFileWriter{}
 
 func newSyncFileWriter(s *SyncConn, mtime time.Time) *SyncFileWriter {
 	return &SyncFileWriter{

@@ -2,7 +2,6 @@ package adb
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"strconv"
@@ -166,6 +165,17 @@ func (c *Device) Remount() (string, error) {
 	return string(resp), wrapClientError(err, c, "Remount")
 }
 
+func (c *Device) Stat(path string) (*wire.DirEntry, error) {
+	conn, err := c.NewSyncConn()
+	if err != nil {
+		return nil, wrapClientError(err, c, "Stat(%s)", path)
+	}
+	defer conn.Close()
+
+	entry, err := conn.Stat(path)
+	return entry, wrapClientError(err, c, "Stat(%s)", path)
+}
+
 func (c *Device) OpenDirReader(path string) (*wire.SyncConn, *wire.SyncDirReader, error) {
 	conn, err := c.NewSyncConn()
 	if err != nil {
@@ -180,39 +190,38 @@ func (c *Device) OpenDirReader(path string) (*wire.SyncConn, *wire.SyncDirReader
 	return conn, dr, nil
 }
 
-func (c *Device) Stat(path string) (*wire.DirEntry, error) {
+func (c *Device) OpenFileReader(path string) (*wire.SyncConn, *wire.SyncFileReader, error) {
 	conn, err := c.NewSyncConn()
 	if err != nil {
-		return nil, wrapClientError(err, c, "Stat(%s)", path)
-	}
-	defer conn.Close()
-
-	entry, err := conn.Stat(path)
-	return entry, wrapClientError(err, c, "Stat(%s)", path)
-}
-
-func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
-	conn, err := c.NewSyncConn()
-	if err != nil {
-		return nil, wrapClientError(err, c, "OpenRead(%s)", path)
+		return nil, nil, wrapClientError(err, c, "OpenRead(%s)", path)
 	}
 
 	reader, err := conn.Recv(path)
-	return reader, wrapClientError(err, c, "OpenRead(%s)", path)
+	if err != nil {
+		conn.Close()
+		return nil, nil, wrapClientError(err, c, "OpenRead(%s)", path)
+	}
+
+	return conn, reader, nil
 }
 
-// OpenWrite opens the file at path on the device, creating it with the permissions specified
+// OpenFileWriter opens the file at path on the device, creating it with the permissions specified
 // by perms if necessary, and returns a writer that writes to the file.
 // The files modification time will be set to mtime when the WriterCloser is closed. The zero value
 // is TimeOfClose, which will use the time the Close method is called as the modification time.
-func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (*wire.SyncFileWriter, error) {
+func (c *Device) OpenFileWriter(path string, perms os.FileMode, mtime time.Time) (*wire.SyncConn, *wire.SyncFileWriter, error) {
 	conn, err := c.NewSyncConn()
 	if err != nil {
-		return nil, wrapClientError(err, c, "OpenWrite(%s)", path)
+		return nil, nil, wrapClientError(err, c, "OpenWrite(%s)", path)
 	}
 
 	writer, err := conn.Send(path, perms, mtime)
-	return writer, wrapClientError(err, c, "OpenWrite(%s)", path)
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	return conn, writer, wrapClientError(err, c, "OpenWrite(%s)", path)
 }
 
 // getAttribute returns the first message returned by the server by running
