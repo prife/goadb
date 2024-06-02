@@ -507,16 +507,21 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 				return nil
 			}
 
+			finfo, err := d.Info()
+			if err != nil {
+				return nil
+			}
+
 			sentFiles++
 			relativePath, _ := filepath.Rel(localDir, path)
 			target := remotePath + "/" + relativePath
-			totalSize := float64(info.Size())
+			totalSize := float64(finfo.Size())
 			sentSize := float64(0)
 			startTime := time.Now()
 			percent := float64(0)
 			err = s.PushFile(path, target, func(n uint64) {
-				percent = float64(sentSize) / float64(totalSize) * 100
 				sentSize = sentSize + float64(n)
+				percent = float64(sentSize) / float64(totalSize) * 100
 				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
 				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
 				if speedMBPerSecond == math.Inf(+1) {
@@ -534,7 +539,7 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 }
 
 func trimSuffixSlash(p string) string {
-	if len(p) > 1 && p[:len(p)-1] == "/" {
+	if len(p) > 1 && p[len(p)-1] == '/' {
 		p = p[:len(p)-1]
 	}
 	return p

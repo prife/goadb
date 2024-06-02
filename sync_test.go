@@ -146,6 +146,47 @@ func TestDevice_Rm_NonExsitAndPermissionDeny(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func listDir(d *adb.Device, path string) error {
+	sc, dr, err := d.OpenDirReader(path)
+	if err != nil {
+		fmt.Println("list dir: ", err)
+		return err
+	}
+	defer sc.Close()
+
+	list, err := dr.ReadDir(-1)
+	if err != nil {
+		return err
+	}
+
+	for _, l := range list {
+		fmt.Println(l)
+	}
+	return nil
+}
+
+func TestDeviceOpenDirReader(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	sc, dr, err := d.OpenDirReader("/sdcard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer sc.Close()
+	list, err := dr.ReadDir(-1)
+	assert.Equal(t, err, io.EOF)
+	for _, l := range list {
+		fmt.Println(l)
+	}
+}
+
+func TestDeviceOpenDirReader_NonExsited(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	_, dr, err := d.OpenDirReader("/non-exsited")
+	assert.ErrorIs(t, err, wire.ErrFileNoExist)
+	fmt.Println(dr, err)
+}
+
 func TestFileService_PushFile_LargeFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	fs, err := d.NewSyncConn()
@@ -216,47 +257,6 @@ func TestDevice_PushFile(t *testing.T) {
 	}
 }
 
-func listDir(d *adb.Device, path string) error {
-	sc, dr, err := d.OpenDirReader(path)
-	if err != nil {
-		fmt.Println("list dir: ", err)
-		return err
-	}
-	defer sc.Close()
-
-	list, err := dr.ReadDir(-1)
-	if err != nil {
-		return err
-	}
-
-	for _, l := range list {
-		fmt.Println(l)
-	}
-	return nil
-}
-
-func TestDeviceOpenDirReader(t *testing.T) {
-	d := adbclient.Device(adb.AnyDevice())
-	sc, dr, err := d.OpenDirReader("/sdcard")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer sc.Close()
-	list, err := dr.ReadDir(-1)
-	assert.Equal(t, err, io.EOF)
-	for _, l := range list {
-		fmt.Println(l)
-	}
-}
-
-func TestDeviceOpenDirReader_NonExsited(t *testing.T) {
-	d := adbclient.Device(adb.AnyDevice())
-	_, dr, err := d.OpenDirReader("/non-exsited")
-	assert.ErrorIs(t, err, wire.ErrFileNoExist)
-	fmt.Println(dr, err)
-}
-
 func TestFileService_PushDir(t *testing.T) {
 	pwd, _ := os.Getwd()
 	fmt.Println("workdir: ", pwd)
@@ -277,9 +277,9 @@ func TestFileService_PushDir(t *testing.T) {
 	err = fs.PushDir(true, path.Join(pwd, "wire/"), "/sdcard/",
 		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
 			if err != nil {
-				fmt.Printf("[%d/%d] pushing %s, %%%.2f, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
 			} else {
-				fmt.Printf("[%d/%d] pushing %s, %%%.2f, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
 			}
 		})
 	if err != nil {
