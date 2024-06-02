@@ -78,23 +78,16 @@ func TestSyncSendOctetStringTooLong(t *testing.T) {
 	assert.EqualError(t, err, "AssertionError: octet string must be exactly 4 bytes: 'hello'")
 }
 
-func TestSyncReadTime(t *testing.T) {
-	s := NewSyncConn(makeMockConnBytes(someTimeEncoded))
-	decoded, err := s.ReadTime()
-	assert.NoError(t, err)
-	assert.Equal(t, someTime, decoded)
-}
-
 func TestSyncReadString(t *testing.T) {
 	s := NewSyncConn(makeMockConnStr("\005\000\000\000hello"))
-	str, err := s.ReadString()
+	str, err := s.ReadBytes(nil)
 	assert.NoError(t, err)
-	assert.Equal(t, "hello", str)
+	assert.Equal(t, "hello", string(str))
 }
 
 func TestSyncReadStringTooShort(t *testing.T) {
 	s := NewSyncConn(makeMockConnStr("\005\000\000\000h"))
-	_, err := s.ReadString()
+	_, err := s.ReadBytes(nil)
 	assert.Equal(t, errIncompleteMessage("bytes", 1, 5), err)
 }
 

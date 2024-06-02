@@ -110,15 +110,17 @@ func PrintDeviceInfo(device *adb.Device) error {
 	fmt.Printf("\tstat \"/sdcard\": %+v\n", stat)
 
 	fmt.Println("\tfiles in \"/\":")
-	entries, err := device.ListDirEntries("/")
+	dr, err := device.OpenDirReader("/")
 	if err != nil {
 		fmt.Println("\terror listing files:", err)
 	} else {
-		for entries.Next() {
-			fmt.Printf("\t%+v\n", *entries.Entry())
-		}
-		if entries.Err() != nil {
-			fmt.Println("\terror listing files:", err)
+		for {
+			dirs, err := dr.ReadDir(1)
+			if err != nil {
+				fmt.Println("\terror listing files:", err)
+			} else {
+				fmt.Printf("\t%+v\n", dirs[0])
+			}
 		}
 	}
 

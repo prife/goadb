@@ -68,33 +68,6 @@ func (s *SyncConn) ReadInt32() (int32, error) {
 	return int32(binary.LittleEndian.Uint32(s.rbuf)), nil
 }
 
-func (s *SyncConn) ReadTime() (time.Time, error) {
-	seconds, err := s.ReadInt32()
-	if err != nil {
-		return time.Time{}, fmt.Errorf("error reading time from sync scanner: %w", err)
-	}
-
-	return time.Unix(int64(seconds), 0).UTC(), nil
-}
-
-// Reads an octet length, followed by length bytes.
-func (s *SyncConn) ReadString() (string, error) {
-	length, err := s.ReadInt32()
-	if err != nil {
-		return "", fmt.Errorf("error reading length from sync scanner: %w", err)
-	}
-
-	bytes := make([]byte, length)
-	n, err := io.ReadFull(s, bytes)
-	if err == io.ErrUnexpectedEOF {
-		return "", errIncompleteMessage("bytes", n, int(length))
-	} else if err != nil {
-		return "", fmt.Errorf("error reading string from sync scanner: %w", err)
-	}
-
-	return string(bytes), nil
-}
-
 // Reads an octet length, and then the length of bytes.
 func (s *SyncConn) ReadBytes(buf []byte) (out []byte, err error) {
 	length, err := s.ReadInt32()
@@ -105,6 +78,12 @@ func (s *SyncConn) ReadBytes(buf []byte) (out []byte, err error) {
 		buf = make([]byte, length)
 	}
 	n, err := io.ReadFull(s, buf[:length])
+	if err == io.ErrUnexpectedEOF {
+		return nil, errIncompleteMessage("bytes", n, int(length))
+	} else if err != nil {
+		return nil, fmt.Errorf("error reading string from sync scanner: %w", err)
+	}
+
 	return buf[:n], err
 }
 
@@ -145,43 +124,102 @@ func (conn *SyncConn) finishLstatV1() (d *DirEntry, err error) {
 	return unpackLstatV1(rbuf[:])
 }
 
-func (conn *SyncConn) Stat(path string) (*DirEntry, error) {
-	if err := conn.SendRequest([]byte(ID_LSTAT_V1), []byte(path)); err != nil {
-		return nil, err
-	}
-	return conn.finishLstatV1()
-}
-
-func (conn *SyncConn) List(path string) (entries *DirEntries, err error) {
-	if err = conn.SendRequest([]byte(ID_LIST_V1), []byte(path)); err != nil {
+//	struct __attribute__((packed)) {
+//		uint32_t id;
+//		uint32_t mode;
+//		uint32_t size;
+//		uint32_t mtime;
+//		uint32_t namelen;
+//	} dent_v1; // followed by `namelen` bytes of the name.
+func (s *SyncConn) readDentV1() (entry *DirEntry, done bool, err error) {
+	var buf [20]byte
+	_, err = io.ReadFull(s.Conn, buf[:])
+	if err != nil {
+		err = fmt.Errorf("read dir entry header failed: %w", err)
 		return
 	}
-	return &DirEntries{syncConn: conn}, nil
+
+	id := string(buf[:4])
+	mode_ := binary.LittleEndian.Uint32(buf[4:8])
+	mode := ParseFileModeFromAdb(mode_)
+	size := int32(binary.LittleEndian.Uint32(buf[8:12]))
+	mtime_ := int32(binary.LittleEndian.Uint32(buf[12:16]))
+	mtime := time.Unix(int64(mtime_), 0).UTC()
+	namelen := binary.LittleEndian.Uint32(buf[16:20])
+
+	var name []byte
+	if namelen > 0 {
+		name = make([]byte, namelen)
+		if _, err = io.ReadFull(s, name); err != nil {
+			err = fmt.Errorf("read dir entry name failed: %w", err)
+		}
+	}
+
+	if id == ID_DONE {
+		done = true
+		return
+	} else if id != ID_DENT_V1 {
+		err = fmt.Errorf("error reading dir entries: expected dir entry ID 'DENT', but got '%s'", id)
+		return
+	}
+
+	done = false
+	entry = &DirEntry{
+		Name:       string(name),
+		Mode:       mode,
+		Size:       size,
+		ModifiedAt: mtime,
+	}
+	return
 }
 
-func (conn *SyncConn) Recv(path string) (io.ReadCloser, error) {
-	if err := conn.SendRequest([]byte(ID_RECV), []byte(path)); err != nil {
+func (s *SyncConn) Stat(path string) (*DirEntry, error) {
+	if err := s.SendRequest([]byte(ID_LSTAT_V1), []byte(path)); err != nil {
 		return nil, err
 	}
-	return newSyncFileReader(conn), nil
+	return s.finishLstatV1()
+}
+
+// SendList
+// Android 5.1上，打开一个不存在文件夹，List协议并不会报错，且对其获取DENT时直接返回DONE
+// 为了确保函数行为正常，先对起执行STAT
+func (s *SyncConn) SendList(path string) (entries *SyncDirReader, err error) {
+	d, err := s.Stat(path)
+	if err != nil {
+		return
+	}
+	if !d.Mode.IsDir() {
+		return
+	}
+	if err = s.SendRequest([]byte(ID_LIST_V1), []byte(path)); err != nil {
+		return
+	}
+	return &SyncDirReader{syncConn: s}, nil
+}
+
+func (s *SyncConn) Recv(path string) (io.ReadCloser, error) {
+	if err := s.SendRequest([]byte(ID_RECV), []byte(path)); err != nil {
+		return nil, err
+	}
+	return newSyncFileReader(s), nil
 }
 
 // Send returns a WriteCloser than will write to the file at path on device.
 // The file will be created with permissions specified by mode.
 // The file's modified time will be set to mtime, unless mtime is 0, in which case the time the writer is
 // closed will be used.
-func (conn *SyncConn) Send(path string, mode os.FileMode, mtime time.Time) (*SyncFileWriter, error) {
+func (s *SyncConn) Send(path string, mode os.FileMode, mtime time.Time) (*SyncFileWriter, error) {
 	// encodes a path and file mode as required for starting a send file stream.
 	// From https://android.googlesource.com/platform/system/core/+/master/adb/SYNC.TXT:
 	//	The remote file name is split into two parts separated by the last
 	//	comma (","). The first part is the actual path, while the second is a decimal
 	//	encoded file mode containing the permissions of the file on device.
 	pathAndMode := []byte(fmt.Sprintf("%s,%d", path, uint32(mode.Perm())))
-	if err := conn.SendRequest([]byte(ID_SEND), pathAndMode); err != nil {
+	if err := s.SendRequest([]byte(ID_SEND), pathAndMode); err != nil {
 		return nil, err
 	}
 
-	return newSyncFileWriter(conn, mtime), nil
+	return newSyncFileWriter(s, mtime), nil
 }
 
 // ReadNextChunkSize read the 4-bytes length of next chunk of data,

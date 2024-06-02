@@ -10,6 +10,7 @@ import (
 	"time"
 
 	adb "github.com/prife/goadb"
+	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -216,13 +217,13 @@ func TestDevice_PushFile(t *testing.T) {
 }
 
 func listDir(d *adb.Device, path string) error {
-	entries, err := d.ListDirEntries(path)
+	dr, err := d.OpenDirReader(path)
 	if err != nil {
 		fmt.Println("list dir: ", err)
 		return err
 	}
 
-	list, err := entries.ReadAll()
+	list, err := dr.ReadDir(-1)
 	if err != nil {
 		return err
 	}
@@ -233,13 +234,11 @@ func listDir(d *adb.Device, path string) error {
 	return nil
 }
 
-func TestDeviceListDir(t *testing.T) {
+func TestDeviceOpenDirReader_NonExsited(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
-	entries, err := d.ListDirEntries("/non-exsited")
-	fmt.Println(entries, err)
-	if entries != nil {
-		fmt.Println(entries.Err())
-	}
+	dr, err := d.OpenDirReader("/non-exsited")
+	assert.ErrorIs(t, err, wire.ErrFileNoExist)
+	fmt.Println(dr, err)
 }
 
 func TestFileService_PushDir(t *testing.T) {
