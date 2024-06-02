@@ -1,4 +1,4 @@
-package adb
+package wire
 
 import (
 	"encoding/binary"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"time"
-
-	"github.com/prife/goadb/wire"
 )
 
 // DirEntry holds information about a directory entry on a device.
@@ -20,7 +18,7 @@ type DirEntry struct {
 
 // DirEntries iterates over directory entries.
 type DirEntries struct {
-	syncConn     *wire.SyncConn
+	syncConn     *SyncConn
 	currentEntry *DirEntry
 	err          error
 }
@@ -85,7 +83,7 @@ func (entries *DirEntries) Close() error {
 //		uint32_t mtime;
 //		uint32_t namelen;
 //	} dent_v1; // followed by `namelen` bytes of the name.
-func readNextDirListEntry(s *wire.SyncConn) (entry *DirEntry, done bool, err error) {
+func readNextDirListEntry(s *SyncConn) (entry *DirEntry, done bool, err error) {
 	var rbuf [16]byte
 	_, err = io.ReadFull(s.Conn, rbuf[:])
 	if err != nil {
@@ -94,7 +92,7 @@ func readNextDirListEntry(s *wire.SyncConn) (entry *DirEntry, done bool, err err
 
 	id := string(rbuf[:4])
 	mode_ := binary.LittleEndian.Uint32(rbuf[4:8])
-	mode := wire.ParseFileModeFromAdb(mode_)
+	mode := ParseFileModeFromAdb(mode_)
 	size := int32(binary.LittleEndian.Uint32(rbuf[8:12]))
 	mtime_ := int32(binary.LittleEndian.Uint32(rbuf[12:16]))
 	mtime := time.Unix(int64(mtime_), 0).UTC()

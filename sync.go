@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/prife/goadb/wire"
 )
 
 func ListAllSubDirs(localDir string) (list []string, err error) {
@@ -142,7 +144,7 @@ func (c *Device) PushFile(localPath, remotePath string, handler func(totoalSize,
 	// 	return fmt.Errorf("get device features: %w", err)
 	// }
 
-	fconn, err := c.getSyncConn()
+	fconn, err := c.NewSyncConn()
 	if err != nil {
 		return err
 	}
@@ -173,7 +175,7 @@ func (c *Device) PushFile(localPath, remotePath string, handler func(totoalSize,
 // 2.如果'dest-dir'路径存在，会创建'dest-dir/src-dir'，其内容与`src-dir`完全一致
 //
 // 本函数只支持情况2，既永远会在手机上创建src-dir
-func (c *Device) PushDir(local, remote string, withSrcDir bool, handler SyncHandler) (err error) {
+func (c *Device) PushDir(local, remote string, withSrcDir bool, handler wire.SyncHandler) (err error) {
 	linfo, err := os.Lstat(local)
 	if err != nil {
 		return err
@@ -200,7 +202,7 @@ func (c *Device) PushDir(local, remote string, withSrcDir bool, handler SyncHand
 	}
 
 	// push files
-	fconn, err := c.getSyncConn()
+	fconn, err := c.NewSyncConn()
 	if err != nil {
 		return err
 	}

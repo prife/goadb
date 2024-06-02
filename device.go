@@ -166,8 +166,8 @@ func (c *Device) Remount() (string, error) {
 	return string(resp), wrapClientError(err, c, "Remount")
 }
 
-func (c *Device) ListDirEntries(path string) (*DirEntries, error) {
-	conn, err := c.getSyncConn()
+func (c *Device) ListDirEntries(path string) (*wire.DirEntries, error) {
+	conn, err := c.NewSyncConn()
 	if err != nil {
 		return nil, wrapClientError(err, c, "ListDirEntries(%s)", path)
 	}
@@ -176,8 +176,8 @@ func (c *Device) ListDirEntries(path string) (*DirEntries, error) {
 	return entries, wrapClientError(err, c, "ListDirEntries(%s)", path)
 }
 
-func (c *Device) Stat(path string) (*DirEntry, error) {
-	conn, err := c.getSyncConn()
+func (c *Device) Stat(path string) (*wire.DirEntry, error) {
+	conn, err := c.NewSyncConn()
 	if err != nil {
 		return nil, wrapClientError(err, c, "Stat(%s)", path)
 	}
@@ -188,7 +188,7 @@ func (c *Device) Stat(path string) (*DirEntry, error) {
 }
 
 func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
-	conn, err := c.getSyncConn()
+	conn, err := c.NewSyncConn()
 	if err != nil {
 		return nil, wrapClientError(err, c, "OpenRead(%s)", path)
 	}
@@ -201,8 +201,8 @@ func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
 // by perms if necessary, and returns a writer that writes to the file.
 // The files modification time will be set to mtime when the WriterCloser is closed. The zero value
 // is TimeOfClose, which will use the time the Close method is called as the modification time.
-func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (*syncFileWriter, error) {
-	conn, err := c.getSyncConn()
+func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (*wire.SyncFileWriter, error) {
+	conn, err := c.NewSyncConn()
 	if err != nil {
 		return nil, wrapClientError(err, c, "OpenWrite(%s)", path)
 	}
@@ -222,7 +222,7 @@ func (c *Device) getAttribute(attr string) (string, error) {
 	return string(resp), nil
 }
 
-func (c *Device) getSyncConn() (*FileService, error) {
+func (c *Device) NewSyncConn() (*wire.SyncConn, error) {
 	conn, err := c.dialDevice()
 	if err != nil {
 		return nil, err
@@ -237,11 +237,7 @@ func (c *Device) getSyncConn() (*FileService, error) {
 	}
 
 	// FIXME: refactor in soon
-	return &FileService{SyncConn: wire.NewSyncConn(conn.(*wire.Conn))}, nil
-}
-
-func (c *Device) NewFileService() (*FileService, error) {
-	return c.getSyncConn()
+	return wire.NewSyncConn(conn.(*wire.Conn)), nil
 }
 
 // dialDevice switches the connection to communicate directly with the device

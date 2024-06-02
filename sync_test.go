@@ -145,14 +145,9 @@ func TestDevice_Rm_NonExsitAndPermissionDeny(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func newFs() (svr *adb.FileService, err error) {
-	d := adbclient.Device(adb.AnyDevice())
-	svr, err = d.NewFileService()
-	return
-}
-
 func TestFileService_PushFile_LargeFile(t *testing.T) {
-	fs, err := newFs()
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewSyncConn()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +174,8 @@ func TestFileService_PushFile_LargeFile(t *testing.T) {
 }
 
 func TestFileService_PushFile_ToDir(t *testing.T) {
-	fs, err := newFs()
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewSyncConn()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +252,7 @@ func TestFileService_PushDir(t *testing.T) {
 	// listDir(d, "/sdcard/")
 
 	// create connection
-	fs, err := d.NewFileService()
+	fs, err := d.NewSyncConn()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +273,8 @@ func TestFileService_PushDir(t *testing.T) {
 }
 
 func TestFileService_PullFile(t *testing.T) {
-	fs, err := newFs()
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewSyncConn()
 	if err != nil {
 		t.Fatal(err)
 	}

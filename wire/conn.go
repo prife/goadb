@@ -15,11 +15,8 @@ const (
 	SyncMaxChunkSize = 64 * 1024
 
 	// StatusCodes are returned by the server. If the code indicates failure, the next message will be the error.
-	StatusSuccess  string = "OKAY"
-	StatusFailure  string = "FAIL"
-	StatusSyncData string = "DATA"
-	StatusSyncDone string = "DONE"
-	StatusNone     string = ""
+	StatusSuccess string = "OKAY"
+	StatusFailure string = "FAIL"
 )
 
 type StatusReader interface {
