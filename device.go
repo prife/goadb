@@ -2,7 +2,6 @@ package adb
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"strconv"
@@ -24,7 +23,31 @@ type Device struct {
 
 	// Used to get device info.
 	deviceListFunc func() ([]*DeviceInfo, error)
+	deviceFeatures map[string]bool
 }
+
+const (
+	FeatureShell2                    = "shell_v2"
+	FeatureCmd                       = "cmd"
+	FeatureStat2                     = "stat_v2"
+	FeatureLs2                       = "ls_v2"
+	FeatureLibusb                    = "libusb"
+	FeaturePushSync                  = "push_sync"
+	FeatureApex                      = "apex"
+	FeatureFixedPushMkdir            = "fixed_push_mkdir"
+	FeatureAbb                       = "abb"
+	FeatureFixedPushSymlinkTimestamp = "fixed_push_symlink_timestamp"
+	FeatureAbbExec                   = "abb_exec"
+	FeatureRemountShell              = "remount_shell"
+	//track_app
+	//sendrecv_v2
+	//sendrecv_v2_brotli
+	//sendrecv_v2_lz4
+	//sendrecv_v2_zstd
+	//sendrecv_v2_dry_run_send
+	//openscreen_mdns
+	//push_sync
+)
 
 func (c *Device) String() string {
 	return c.descriptor.String()
@@ -40,9 +63,13 @@ func (c *Device) DevicePath() (string, error) {
 	return attr, wrapClientError(err, c, "DevicePath")
 }
 
-func (c *Device) DeviceFeatures() (string, error) {
+func (c *Device) DeviceFeatures() (features map[string]bool, err error) {
 	attr, err := c.getAttribute("features")
-	return attr, wrapClientError(err, c, "DevicePath")
+	if err != nil {
+		return nil, wrapClientError(err, c, "features")
+	}
+	features = featuresStrToMap(attr)
+	return
 }
 
 func (c *Device) State() (DeviceState, error) {
@@ -138,49 +165,63 @@ func (c *Device) Remount() (string, error) {
 	return string(resp), wrapClientError(err, c, "Remount")
 }
 
-func (c *Device) ListDirEntries(path string) (*DirEntries, error) {
-	conn, err := c.getSyncConn()
-	if err != nil {
-		return nil, wrapClientError(err, c, "ListDirEntries(%s)", path)
-	}
-
-	entries, err := conn.listDirEntries(path)
-	return entries, wrapClientError(err, c, "ListDirEntries(%s)", path)
-}
-
-func (c *Device) Stat(path string) (*DirEntry, error) {
-	conn, err := c.getSyncConn()
+func (c *Device) Stat(path string) (*wire.DirEntry, error) {
+	conn, err := c.NewSyncConn()
 	if err != nil {
 		return nil, wrapClientError(err, c, "Stat(%s)", path)
 	}
 	defer conn.Close()
 
-	entry, err := conn.stat(path)
+	entry, err := conn.Stat(path)
 	return entry, wrapClientError(err, c, "Stat(%s)", path)
 }
 
-func (c *Device) OpenRead(path string) (io.ReadCloser, error) {
-	conn, err := c.getSyncConn()
+func (c *Device) OpenDirReader(path string) (*wire.SyncConn, *wire.SyncDirReader, error) {
+	conn, err := c.NewSyncConn()
 	if err != nil {
-		return nil, wrapClientError(err, c, "OpenRead(%s)", path)
+		return nil, nil, wrapClientError(err, c, "OpenDirReader(%s)", path)
 	}
 
-	reader, err := conn.receiveFile(path)
-	return reader, wrapClientError(err, c, "OpenRead(%s)", path)
+	dr, err := conn.SendList(path)
+	if err != nil {
+		conn.Close()
+		return nil, nil, wrapClientError(err, c, "OpenDirReader(%s)", path)
+	}
+	return conn, dr, nil
 }
 
-// OpenWrite opens the file at path on the device, creating it with the permissions specified
+func (c *Device) OpenFileReader(path string) (*wire.SyncConn, *wire.SyncFileReader, error) {
+	conn, err := c.NewSyncConn()
+	if err != nil {
+		return nil, nil, wrapClientError(err, c, "OpenRead(%s)", path)
+	}
+
+	reader, err := conn.Recv(path)
+	if err != nil {
+		conn.Close()
+		return nil, nil, wrapClientError(err, c, "OpenRead(%s)", path)
+	}
+
+	return conn, reader, nil
+}
+
+// OpenFileWriter opens the file at path on the device, creating it with the permissions specified
 // by perms if necessary, and returns a writer that writes to the file.
 // The files modification time will be set to mtime when the WriterCloser is closed. The zero value
 // is TimeOfClose, which will use the time the Close method is called as the modification time.
-func (c *Device) OpenWrite(path string, perms os.FileMode, mtime time.Time) (io.WriteCloser, error) {
-	conn, err := c.getSyncConn()
+func (c *Device) OpenFileWriter(path string, perms os.FileMode, mtime time.Time) (*wire.SyncConn, *wire.SyncFileWriter, error) {
+	conn, err := c.NewSyncConn()
 	if err != nil {
-		return nil, wrapClientError(err, c, "OpenWrite(%s)", path)
+		return nil, nil, wrapClientError(err, c, "OpenWrite(%s)", path)
 	}
 
-	writer, err := conn.sendFile(path, perms, mtime)
-	return writer, wrapClientError(err, c, "OpenWrite(%s)", path)
+	writer, err := conn.Send(path, perms, mtime)
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	return conn, writer, wrapClientError(err, c, "OpenWrite(%s)", path)
 }
 
 // getAttribute returns the first message returned by the server by running
@@ -194,7 +235,7 @@ func (c *Device) getAttribute(attr string) (string, error) {
 	return string(resp), nil
 }
 
-func (c *Device) getSyncConn() (*FileService, error) {
+func (c *Device) NewSyncConn() (*wire.SyncConn, error) {
 	conn, err := c.dialDevice()
 	if err != nil {
 		return nil, err
@@ -209,11 +250,7 @@ func (c *Device) getSyncConn() (*FileService, error) {
 	}
 
 	// FIXME: refactor in soon
-	return &FileService{SyncConn: conn.(*wire.Conn).NewSyncConn()}, nil
-}
-
-func (c *Device) NewFileService() (*FileService, error) {
-	return c.getSyncConn()
+	return wire.NewSyncConn(conn.(*wire.Conn)), nil
 }
 
 // dialDevice switches the connection to communicate directly with the device

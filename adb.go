@@ -3,6 +3,7 @@ package adb
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/prife/goadb/wire"
 )
@@ -68,8 +69,12 @@ func (c *Adb) ServerVersion() (int, error) {
 	return version, nil
 }
 
-func (c *Adb) HostFeatures() ([]byte, error) {
-	return roundTripSingleResponse(c.server, "host:host-features")
+func (c *Adb) HostFeatures() (map[string]bool, error) {
+	resp, err := roundTripSingleResponse(c.server, "host:host-features")
+	if err != nil {
+		return nil, err
+	}
+	return featuresStrToMap(string(resp)), nil
 }
 
 // KillServer tells the server to quit immediately.
@@ -147,4 +152,16 @@ func (c *Adb) parseServerVersion(versionRaw []byte) (int, error) {
 		return 0, fmt.Errorf("error parsing server version: %s", versionStr)
 	}
 	return int(version), nil
+}
+
+func featuresStrToMap(attr string) (features map[string]bool) {
+	lists := strings.Split(attr, ",")
+	if len(lists) == 0 {
+		return
+	}
+	features = make(map[string]bool)
+	for _, f := range lists {
+		features[f] = true
+	}
+	return
 }

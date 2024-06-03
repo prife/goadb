@@ -1,4 +1,4 @@
-package adb
+package wire
 
 import (
 	"bytes"
@@ -9,13 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestReadNextChunk(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
-		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
+	s := NewSyncConn(makeMockConnStr(
+		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE\000\000\000\000"))
 
 	// Read 1st chunk
 	reader, err := s.ReadNextChunkSize()
@@ -42,7 +41,7 @@ func TestReadNextChunk(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 }
 func TestReadNextChunkInvalidChunkId(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
+	s := NewSyncConn(makeMockConnStr(
 		"ATAD\006\000\000\000hello "))
 
 	// Read 1st chunk
@@ -51,8 +50,8 @@ func TestReadNextChunkInvalidChunkId(t *testing.T) {
 }
 
 func TestReadMultipleCalls(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
-		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
+	s := NewSyncConn(makeMockConnStr(
+		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE\000\000\000\000"))
 	reader := newSyncFileReader(s)
 
 	firstByte := make([]byte, 1)
@@ -75,8 +74,8 @@ func TestReadMultipleCalls(t *testing.T) {
 }
 
 func TestReadAll(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
-		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE"))
+	s := NewSyncConn(makeMockConnStr(
+		"DATA\006\000\000\000hello DATA\005\000\000\000worldDONE\000\000\000\000"))
 	reader := newSyncFileReader(s)
 	buf := make([]byte, 20)
 	_, err := io.ReadFull(reader, buf)
@@ -85,7 +84,7 @@ func TestReadAll(t *testing.T) {
 }
 
 func TestReadError(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
+	s := NewSyncConn(makeMockConnStr(
 		"FAIL\004\000\000\000fail"))
 	r := newSyncFileReader(s)
 	_, err := r.Read(nil)
@@ -93,8 +92,7 @@ func TestReadError(t *testing.T) {
 }
 
 func TestReadEmpty(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
-		"DONE"))
+	s := NewSyncConn(makeMockConnStr("DONE\000\000\000\000"))
 	r := newSyncFileReader(s)
 	data, err := io.ReadAll(r)
 	assert.NoError(t, err)
@@ -102,17 +100,17 @@ func TestReadEmpty(t *testing.T) {
 	// Multiple read calls that return EOF is a valid case.
 	for i := 0; i < 5; i++ {
 		data, err := io.ReadAll(r)
-		assert.ErrorIs(t, err, io.EOF)
+		assert.NoError(t, err) // io.ReadAll treat an EOF to nil
 		assert.Empty(t, data)
 	}
 }
 
 func TestReadErrorNotFound(t *testing.T) {
-	s := wire.NewSyncConn(makeMockConnStr(
+	s := NewSyncConn(makeMockConnStr(
 		"FAIL\031\000\000\000No such file or directory"))
 	r := newSyncFileReader(s)
 	_, err := r.Read(nil)
-	assert.True(t, errors.Is(err, wire.ErrFileNoExist))
+	assert.True(t, errors.Is(err, ErrFileNoExist))
 	assert.EqualError(t, err, "FileNoExist: no such file or directory")
 }
 
@@ -121,8 +119,8 @@ func TestReadErrorNotFound(t *testing.T) {
 
 func TestFileWriterWriteSingleChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
-	writer := newSyncFileWriter(syncConn, MtimeOfClose)
+	syncConn := NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
+	writer := newSyncFileWriter(syncConn, time.Time{})
 
 	n, err := writer.Write([]byte("hello"))
 	assert.NoError(t, err)
@@ -133,8 +131,8 @@ func TestFileWriterWriteSingleChunk(t *testing.T) {
 
 func TestFileWriterWriteMultiChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
-	writer := newSyncFileWriter(syncConn, MtimeOfClose)
+	syncConn := NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
+	writer := newSyncFileWriter(syncConn, time.Time{})
 
 	n, err := writer.Write([]byte("hello"))
 	assert.NoError(t, err)
@@ -149,26 +147,26 @@ func TestFileWriterWriteMultiChunk(t *testing.T) {
 
 func TestFileWriterWriteLargeChunk(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
-	writer := newSyncFileWriter(syncConn, MtimeOfClose)
+	syncConn := NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
+	writer := newSyncFileWriter(syncConn, time.Time{})
 
 	// Send just enough data to get 2 chunks.
-	data := make([]byte, wire.SyncMaxChunkSize+1)
+	data := make([]byte, SyncMaxChunkSize+1)
 	n, err := writer.Write(data)
 
 	assert.NoError(t, err)
-	assert.Equal(t, wire.SyncMaxChunkSize+1, n)
-	assert.Equal(t, 8+8+wire.SyncMaxChunkSize+1, buf.Len())
+	assert.Equal(t, SyncMaxChunkSize+1, n)
+	assert.Equal(t, 8+8+SyncMaxChunkSize+1, buf.Len())
 
 	// First header.
-	chunk := buf.Bytes()[:8+wire.SyncMaxChunkSize]
+	chunk := buf.Bytes()[:8+SyncMaxChunkSize]
 	expectedHeader := []byte("DATA----")
-	binary.LittleEndian.PutUint32(expectedHeader[4:], wire.SyncMaxChunkSize)
+	binary.LittleEndian.PutUint32(expectedHeader[4:], SyncMaxChunkSize)
 	assert.Equal(t, expectedHeader, chunk[:8])
-	assert.Equal(t, data[:wire.SyncMaxChunkSize], chunk[8:])
+	assert.Equal(t, data[:SyncMaxChunkSize], chunk[8:])
 
 	// Second header.
-	chunk = buf.Bytes()[wire.SyncMaxChunkSize+8 : wire.SyncMaxChunkSize+8+1]
+	chunk = buf.Bytes()[SyncMaxChunkSize+8 : SyncMaxChunkSize+8+1]
 	expectedHeader = []byte("DATA\000\000\000\000")
 	binary.LittleEndian.PutUint32(expectedHeader[4:], 1)
 	assert.Equal(t, expectedHeader, chunk[:8])
@@ -177,10 +175,10 @@ func TestFileWriterWriteLargeChunk(t *testing.T) {
 func TestFileWriterCloseEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, mtime)
 
-	assert.NoError(t, writer.Close())
+	assert.NoError(t, writer.CopyDone())
 
 	assert.Equal(t, "DONE\x01\x00\x00\x00", buf.String())
 }
@@ -188,23 +186,23 @@ func TestFileWriterCloseEmpty(t *testing.T) {
 func TestFileWriterWriteClose(t *testing.T) {
 	var buf bytes.Buffer
 	mtime := time.Unix(1, 0)
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
+	syncConn := NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
 	writer := newSyncFileWriter(syncConn, mtime)
 
 	writer.Write([]byte("hello"))
-	assert.NoError(t, writer.Close())
 
+	assert.NoError(t, writer.CopyDone())
 	assert.Equal(t, "DATA\005\000\000\000helloDONE\x01\x00\x00\x00", buf.String())
 }
 
 func TestFileWriterCloseAutoMtime(t *testing.T) {
 	var buf bytes.Buffer
-	syncConn := wire.NewSyncConn(makeMockConn2("OKAY", &buf))
-	writer := newSyncFileWriter(syncConn, MtimeOfClose)
+	syncConn := NewSyncConn(makeMockConn2("OKAY\x00\x00\x00\x00", &buf))
+	writer := newSyncFileWriter(syncConn, time.Time{})
 
-	assert.NoError(t, writer.Close())
+	assert.NoError(t, writer.CopyDone())
 	assert.Len(t, buf.String(), 8)
-	assert.True(t, strings.HasPrefix(buf.String(), "DONE"))
+	assert.True(t, strings.HasPrefix(buf.String(), ID_DONE))
 
 	mtimeBytes := buf.Bytes()[4:]
 	mtimeActual := time.Unix(int64(binary.LittleEndian.Uint32(mtimeBytes)), 0)

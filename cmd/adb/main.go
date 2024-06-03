@@ -202,12 +202,12 @@ func pull(showProgress bool, remotePath, localPath string, device adb.DeviceDesc
 		return 1
 	}
 
-	remoteFile, err := client.OpenRead(remotePath)
+	sc, remoteFile, err := client.OpenFileReader(remotePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening remote file %s: %v\n", remotePath, err)
 		return 1
 	}
-	defer remoteFile.Close()
+	defer sc.Close()
 
 	var localFile io.WriteCloser
 	if localPath == StdIoFilename {
@@ -265,12 +265,13 @@ func push(showProgress bool, localPath, remotePath string, device adb.DeviceDesc
 	defer localFile.Close()
 
 	client := client.Device(device)
-	writer, err := client.OpenWrite(remotePath, perms, mtime)
+	sc, writer, err := client.OpenFileWriter(remotePath, perms, mtime)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening remote file %s: %s\n", remotePath, err)
 		return 1
 	}
-	defer writer.Close()
+	defer writer.CopyDone()
+	defer sc.Close()
 
 	if err := copyWithProgressAndStats(writer, localFile, size, showProgress); err != nil {
 		fmt.Fprintln(os.Stderr, "error pushing file:", err)

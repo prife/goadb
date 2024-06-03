@@ -89,7 +89,7 @@ func TestReadIncompleteMessage(t *testing.T) {
 	msg, err := readMessage(s, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errIncompleteMessage("message data", 3, 5), err)
-	assert.Equal(t, "hel\000\000", string(msg))
+	assert.Equal(t, "hel", string(msg))
 	assertEof(t, s)
 }
 
@@ -143,13 +143,16 @@ func TestWriteEmptyMessage(t *testing.T) {
 }
 
 func newTestSender() (Sender, *mockConn) {
-	w := new(mockConn)
+	var buf bytes.Buffer
+	w := makeMockConnBuf(&buf)
 	return NewConn(w), w
 }
 
-// mockConn is a wrapper around a bytes.Buffer that implements io.Closer.
+// mockConn is a wrapper around a bytes.Buffer that implements net.Conn
 type mockConn struct {
-	*bytes.Buffer
+	// io.ReadWriter
+	*bytes.Buffer // write buffer
+	rbuf          *bytes.Buffer
 }
 
 func makeMockConnStr(str string) net.Conn {
@@ -159,7 +162,7 @@ func makeMockConnStr(str string) net.Conn {
 	return w
 }
 
-func makeMockConnBuf(buf *bytes.Buffer) net.Conn {
+func makeMockConnBuf(buf *bytes.Buffer) *mockConn {
 	w := &mockConn{
 		Buffer: buf,
 	}
@@ -171,6 +174,26 @@ func makeMockConnBytes(b []byte) net.Conn {
 		Buffer: bytes.NewBuffer(b),
 	}
 	return w
+}
+
+func makeMockConn2(str string, buf *bytes.Buffer) net.Conn {
+	w := &mockConn{
+		rbuf:   bytes.NewBufferString(str),
+		Buffer: buf,
+	}
+	return w
+}
+
+func (b *mockConn) Read(p []byte) (n int, err error) {
+	if b.rbuf != nil {
+		return b.rbuf.Read(p)
+	}
+
+	return b.Buffer.Read(p)
+}
+
+func (b *mockConn) Write(p []byte) (n int, err error) {
+	return b.Buffer.Write(p)
 }
 
 func (b *mockConn) Close() error {

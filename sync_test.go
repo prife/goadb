@@ -4,96 +4,36 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"strings"
 	"testing"
 	"time"
 
 	adb "github.com/prife/goadb"
+	"github.com/prife/goadb/wire"
+	"github.com/stretchr/testify/assert"
 )
 
-func newFs() (svr *adb.FileService, err error) {
-	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
-	if err != nil {
-		return
-	}
+var (
+	testZip string
+)
 
-	d := adbclient.Device(adb.AnyDevice())
-	svr, err = d.NewFileService()
-	return
-}
-
-func TestFileService_PushFile(t *testing.T) {
-	fs, err := newFs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fs.Close()
-
-	err = fs.PushFile("/Users/wetest/Downloads/RTR4-CN.pdf", "/sdcard/RTR4-CN.pdf",
-		func(total, sent int64, duration time.Duration, status string) {
-			percent := float64(sent) / float64(total) * 100
-			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
-			fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, sent, speedKBPerSecond)
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestFileService_PullFile(t *testing.T) {
-	fs, err := newFs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fs.Close()
-
-	err = fs.PullFile("/sdcard/WeChatMac.dmg", "WeChatMac.dmg",
-		func(total, sent int64, duration time.Duration, status string) {
-			percent := float64(sent) / float64(total) * 100
-			speedKBPerSecond := float64(sent) / 1024.0 / 1024.0 / (float64(duration) / float64(time.Second))
-			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestFileService_PushDir(t *testing.T) {
-	fs, err := newFs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fs.Close()
-
-	err = fs.PushDir("doc", "/sdcard/test/",
-		func(total, sent int64, duration time.Duration, status string) {})
-	if err != nil {
-		t.Fatal(err)
-	}
+func init() {
+	homePath, _ := os.UserHomeDir()
+	testZip = path.Join(homePath, "Downloads/test.zip")
 }
 
 func TestDeviceFeatures(t *testing.T) {
-	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	features, err := adbclient.HostFeatures()
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println("host features: ", string(features))
+	fmt.Println("host features: ", features)
 	d := adbclient.Device(adb.AnyDevice())
-
-	// Android 14
-	// shell_v2,cmd,stat_v2,ls_v2,fixed_push_mkdir,apex,abb,fixed_push_symlink_timestamp,abb_exec,remount_shell,track_app,sendrecv_v2,sendrecv_v2_brotli,sendrecv_v2_lz4,sendrecv_v2_zstd,sendrecv_v2_dry_run_send,openscreen_mdns,delayed_ack
 	fmt.Println(d.DeviceFeatures())
 }
 
 func TestForwardPort(t *testing.T) {
-	adbclient, err := adb.NewWithConfig(adb.ServerConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
 	d := adbclient.Device(adb.AnyDevice())
 	conn, err := d.ForwardPort(50000)
 	if err != nil {
@@ -111,5 +51,296 @@ func TestForwardPort(t *testing.T) {
 			return
 		}
 		time.Sleep(time.Second * 1)
+	}
+}
+
+func Test_listAllSubDirs(t *testing.T) {
+	gotList, err := adb.ListAllSubDirs("cmd")
+	assert.Nil(t, err)
+
+	for _, l := range gotList {
+		fmt.Println(l)
+	}
+
+	_, err = adb.ListAllSubDirs("non-exsited")
+	assert.True(t, os.IsNotExist(err))
+}
+
+// $ adb shell mkdir /sdcard/a/ /sdcard/a/b /sdcard/a/b/c
+// $ adb shell mkdir /sdcard/a/ /sdcard/a/b /sdcard/a/b/c
+// mkdir: '/sdcard/a/': File exists
+// mkdir: '/sdcard/a/b': File exists
+// mkdir: '/sdcard/a/b/c': File exists
+func TestDevice_Mkdirs(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	_, err := d.RunCommand("rm", "-rf", "/sdcard/a")
+	assert.Nil(t, err)
+
+	err = d.Mkdirs([]string{"/sdcard/a/", "/sdcard/a/b", "/sdcard/a/b/c"})
+	assert.Nil(t, err)
+	err = d.Mkdirs([]string{"/sdcard/a/", "/sdcard/a/b", "/sdcard/a/b/c"})
+	assert.Nil(t, err)
+}
+
+// $ adb shell mkdir /sd/a/ /sd/a/b /sd/a/b/c
+// mkdir: '/sd/a/': No such file or directory
+// mkdir: '/sd/a/b': No such file or directory
+// mkdir: '/sd/a/b/c': No such file or directory
+func TestDevice_Mkdirs_NonExsit(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/sd/a/", "/sd/a/b", "/sd/a/b/c"})
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return
+		}
+		assert.Contains(t, line, "No such file or directory")
+	}
+}
+
+func TestDevice_Mkdirs_ReadOnly(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/a", "/b", "/c"})
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return
+		}
+		assert.Contains(t, line, "Read-only file system")
+	}
+}
+
+func TestDevice_Mkdirs_PermissionDeny(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/data/a", "/data/b", "/data/c"})
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return
+		}
+		assert.Contains(t, line, "Permission denied")
+	}
+}
+
+func TestDevice_Rm_NonExsitAndPermissionDeny(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Rm([]string{"/data/a", "/data/b", "/data/c"})
+	if err != nil {
+		fmt.Println(err)
+	}
+	assert.Nil(t, err)
+
+	err = d.Rm([]string{"/a", "/b", "/c"})
+	if err != nil {
+		fmt.Println(err)
+	}
+	assert.Nil(t, err)
+}
+
+func listDir(d *adb.Device, path string) error {
+	sc, dr, err := d.OpenDirReader(path)
+	if err != nil {
+		fmt.Println("list dir: ", err)
+		return err
+	}
+	defer sc.Close()
+
+	list, err := dr.ReadDir(-1)
+	if err != nil {
+		return err
+	}
+
+	for _, l := range list {
+		fmt.Println(l)
+	}
+	return nil
+}
+
+func TestDeviceOpenDirReader(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	sc, dr, err := d.OpenDirReader("/sdcard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer sc.Close()
+	list, err := dr.ReadDir(-1)
+	assert.Equal(t, err, io.EOF)
+	for _, l := range list {
+		fmt.Println(l)
+	}
+}
+
+func TestDeviceOpenDirReader_NonExsited(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	_, dr, err := d.OpenDirReader("/non-exsited")
+	assert.ErrorIs(t, err, wire.ErrFileNoExist)
+	fmt.Println(dr, err)
+}
+
+func TestFileService_PushFile_LargeFile(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewSyncConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	info, err := os.Stat(testZip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	total := float64(info.Size())
+	sent := float64(0)
+	startTime := time.Now()
+	err = fs.PushFile(testZip, "/sdcard/test.zip",
+		func(n uint64) {
+			sent = sent + float64(n)
+			percent := float64(sent) / float64(total) * 100
+			speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
+			fmt.Printf("push %.02f%% %f Bytes, %.02f MB/s\n", percent, sent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFileService_PushFile_ToDir(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewSyncConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	pwd, _ := os.Getwd()
+	localfile := path.Join(pwd, "sync.go")
+	_, err = os.Stat(localfile)
+	assert.Nil(t, err)
+
+	err = fs.PushFile(localfile, "/sdcard/", func(n uint64) {})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Is a directory")
+	fmt.Println(err)
+}
+
+func TestDevice_PushFile(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	pwd, _ := os.Getwd()
+
+	// push to dir
+	err := d.PushFile(path.Join(pwd, "sync.go"), "/sdcard/",
+		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// push to file
+	err = d.PushFile(testZip, "/sdcard/test.zip",
+		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFileService_PushDir(t *testing.T) {
+	pwd, _ := os.Getwd()
+	fmt.Println("workdir: ", pwd)
+
+	// clear remote dir
+	d := adbclient.Device(adb.AnyDevice())
+	_ = d.Rm([]string{"/sdcard/wire"})
+	// listDir(d, "/sdcard/")
+
+	// create connection
+	fs, err := d.NewSyncConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	// push directory
+	err = fs.PushDir(true, path.Join(pwd, "wire/"), "/sdcard/",
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDevice_PushDir(t *testing.T) {
+	pwd, _ := os.Getwd()
+	fmt.Println("workdir: ", pwd)
+
+	// clear remote dir
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/sdcard/test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// listDir(d, "/sdcard/")
+
+	// push all files and subdirs under wire/ to /sdcard/test
+	err = d.PushDir(path.Join(pwd, "wire/"), "/sdcard/test", false,
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// push all files and subdirs under wire/ to /sdcard/test
+	err = d.PushDir(path.Join(pwd, "wire/"), "/sdcard/test", true,
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFileService_PullFile(t *testing.T) {
+	d := adbclient.Device(adb.AnyDevice())
+	fs, err := d.NewSyncConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fs.Close()
+
+	err = fs.PullFile("/sdcard/test.zip", "test.zip",
+		func(total, sent int64, duration time.Duration) {
+			percent := float64(sent) / float64(total) * 100
+			speedKBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / float64(duration)
+			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
+		})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

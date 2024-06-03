@@ -112,7 +112,7 @@ func TestDevice_PidGroupOfAndroid14(t *testing.T) {
 
 func TestDevice_KillPids(t *testing.T) {
 	assert.NotNil(t, adbclient)
-	d := adbclient.Device(DeviceWithSerial("79f63fb7"))
+	d := adbclient.Device(AnyDevice())
 	list, err := d.PidOf("com.android.settings", true)
 	assert.Nil(t, err)
 	assert.Equal(t, len(list), 1)
@@ -125,7 +125,7 @@ func TestDevice_KillPids(t *testing.T) {
 
 func TestDevice_KillPidGroupOf(t *testing.T) {
 	assert.NotNil(t, adbclient)
-	d := adbclient.Device(DeviceWithSerial("79f63fb7"))
+	d := adbclient.Device(AnyDevice())
 	list, err := d.KillPidGroupOf("com.android.settings", true)
 	assert.Equal(t, len(list), 1)
 	assert.ErrorIs(t, err, ErrNotPermitted)

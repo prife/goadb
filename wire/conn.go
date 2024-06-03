@@ -12,14 +12,11 @@ const (
 	// on messages.
 	MaxMessageLength = 255
 	// Chunks cannot be longer than 64k.
-	SyncMaxChunkSize = 1024 * 1024
+	SyncMaxChunkSize = 64 * 1024
 
 	// StatusCodes are returned by the server. If the code indicates failure, the next message will be the error.
-	StatusSuccess  string = "OKAY"
-	StatusFailure  string = "FAIL"
-	StatusSyncData string = "DATA"
-	StatusSyncDone string = "DONE"
-	StatusNone     string = ""
+	StatusSuccess string = "OKAY"
+	StatusFailure string = "FAIL"
 )
 
 type StatusReader interface {
@@ -87,7 +84,7 @@ var _ Scanner = &Conn{}
 // The connection must already have been switched (by sending the sync command
 // to a specific device), or the return connection will return an error.
 func (c *Conn) NewSyncConn() *SyncConn {
-	return &SyncConn{c.Conn, make([]byte, 4), make([]byte, 4)}
+	return &SyncConn{c.Conn, make([]byte, 8), make([]byte, 8)}
 }
 
 func (s *Conn) SendMessage(msg []byte) error {
