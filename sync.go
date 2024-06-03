@@ -30,6 +30,51 @@ func ListAllSubDirs(localDir string) (list []string, err error) {
 	return
 }
 
+// adb shell mkdir
+// # Android 14
+//
+// OP5929L1:/ $ mkdir /a /b /c
+// mkdir: '/a': Read-only file system
+// mkdir: '/b': Read-only file system
+// mkdir: '/c': Read-only file system
+// 1|OP5929L1:/ $
+//
+// OP5929L1:/ $ mkdir /sdcard/a /sdcard/b /sdcard/c
+// OP5929L1:/ $ mkdir /sdcard/a /sdcard/b /sdcard/c
+// mkdir: '/sdcard/a': File exists
+// mkdir: '/sdcard/b': File exists
+// mkdir: '/sdcard/c': File exists
+// 1|OP5929L1:/ $
+//
+// OP5929L1:/ $ mkdir /data/a /data/b /data/c
+// mkdir: '/data/a': Permission denied
+// mkdir: '/data/b': Permission denied
+// mkdir: '/data/c': Permission denied
+// 1|OP5929L1:/ $
+//
+// OP5929L1:/ $ mkdir /sd/a /sd/b /sd/c
+// mkdir: '/sd/a': No such file or directory
+// mkdir: '/sd/b': No such file or directory
+// mkdir: '/sd/c': No such file or directory
+//
+// # Android 5.1
+//
+// shell@A33:/ $ mkdir /sdcard/a /sdcard/b /sdcard/c
+// shell@A33:/ $ mkdir /sdcard/a /sdcard/b /sdcard/c
+// mkdir failed for /sdcard/a, File exists
+// 255|shell@A33:/ $
+//
+// shell@A33:/ $ mkdir /sd/a /sd/b /sd/c
+// mkdir failed for /sd/a, No such file or directory
+// 255|shell@A33:/ $
+//
+// shell@A33:/ $ mkdir /a /b /c
+// mkdir failed for /a, Read-only file system
+// 255|shell@A33:/ $
+//
+// shell@A33:/ $ mkdir /data/a /data/b /data/c
+// mkdir failed for /data/a, Permission denied
+// 255|shell@A33:/ $
 func filterFileExistedError(resp []byte) (errs []error) {
 	lines := bytes.Split(resp, []byte("\n"))
 	for _, line := range lines {
