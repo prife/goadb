@@ -347,7 +347,7 @@ func (s *SyncConn) SendRequest(id []byte, data []byte) error {
 	return nil
 }
 
-func (s *SyncConn) PullFile(remotePath, localPath string, handler func(total, sent int64, duration time.Duration, status string)) (err error) {
+func (s *SyncConn) PullFile(remotePath, localPath string, handler func(total, sent int64, duration time.Duration)) (err error) {
 	info, err := s.Stat(remotePath)
 	if err != nil {
 		return fmt.Errorf("stat remote file %s: %w", remotePath, err)
@@ -394,7 +394,7 @@ func (s *SyncConn) PullFile(remotePath, localPath string, handler func(total, se
 		if n > 0 {
 			if handler != nil {
 				sent += int64(n)
-				handler(int64(size), sent, time.Since(startTime), "pulling")
+				handler(int64(size), sent, time.Since(startTime))
 			}
 			_, err = writer.Write(chunk[0:n])
 			if err != nil {

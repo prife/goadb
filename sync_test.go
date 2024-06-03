@@ -287,6 +287,45 @@ func TestFileService_PushDir(t *testing.T) {
 	}
 }
 
+func TestDevice_PushDir(t *testing.T) {
+	pwd, _ := os.Getwd()
+	fmt.Println("workdir: ", pwd)
+
+	// clear remote dir
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.Mkdirs([]string{"/sdcard/test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// listDir(d, "/sdcard/")
+
+	// push all files and subdirs under wire/ to /sdcard/test
+	err = d.PushDir(path.Join(pwd, "wire/"), "/sdcard/test", false,
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// push all files and subdirs under wire/ to /sdcard/test
+	err = d.PushDir(path.Join(pwd, "wire/"), "/sdcard/test", true,
+		func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+			if err != nil {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+			} else {
+				fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFileService_PullFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	fs, err := d.NewSyncConn()
@@ -296,7 +335,7 @@ func TestFileService_PullFile(t *testing.T) {
 	defer fs.Close()
 
 	err = fs.PullFile("/sdcard/test.zip", "test.zip",
-		func(total, sent int64, duration time.Duration, status string) {
+		func(total, sent int64, duration time.Duration) {
 			percent := float64(sent) / float64(total) * 100
 			speedKBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / float64(duration)
 			fmt.Printf("pull %.02f%% %d Bytes / %d, %.02f MB/s\n", percent, sent, total, speedKBPerSecond)
