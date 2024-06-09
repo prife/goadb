@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
@@ -62,19 +63,23 @@ func newDeviceClientWithDeviceLister(serial string, deviceLister func() ([]*Devi
 	return client
 }
 
-// func TestRunCommandNoArgs(t *testing.T) {
-// 	s := &MockServer{
-// 		Status:   wire.StatusSuccess,
-// 		Messages: []string{"output"},
-// 	}
-// 	client := (&Adb{s}).Device(AnyDevice())
+func TestRunCommandNoArgs(t *testing.T) {
+	buf := bytes.NewBuffer([]byte("output"))
+	s := &MockServer{
+		Status: wire.StatusSuccess,
+		// Messages: []string{"output"},
+		mockConn: mockConn{
+			Buffer: buf,
+		},
+	}
+	client := (&Adb{s}).Device(AnyDevice())
 
-// 	v, err := client.RunCommand("cmd")
-// 	assert.Equal(t, "host:transport-any", s.Requests[0])
-// 	assert.Equal(t, "shell:cmd", s.Requests[1])
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, "output", string(v))
-// }
+	v, err := client.RunCommand("cmd")
+	assert.Equal(t, "host:transport-any", s.Requests[0])
+	assert.Equal(t, "shell:cmd", s.Requests[1])
+	assert.NoError(t, err)
+	assert.Equal(t, "output", string(v))
+}
 
 func TestPrepareCommandLineNoArgs(t *testing.T) {
 	result, err := prepareCommandLine("cmd")

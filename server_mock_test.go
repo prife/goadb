@@ -1,14 +1,18 @@
 package adb
 
 import (
+	"bytes"
 	"io"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/prife/goadb/wire"
 )
 
 // MockServer implements Server, Scanner, and Sender.
 type MockServer struct {
+	mockConn
 	// Each time an operation is performed, if this slice is non-empty, the head element
 	// of this slice is returned and removed from the slice. If the head is nil, it is removed
 	// but not returned.
@@ -27,7 +31,12 @@ type MockServer struct {
 	Trace []string
 }
 
-var _ server = &MockServer{}
+var _ server = &MockServer{
+	mockConn: mockConn{
+		Buffer: bytes.NewBuffer(nil),
+		rbuf:   bytes.NewBuffer(nil),
+	},
+}
 
 func (s *MockServer) Dial() (wire.IConn, error) {
 	s.logMethod("Dial")
@@ -115,4 +124,47 @@ func (s *MockServer) getNextErrToReturn() (err error) {
 
 func (s *MockServer) logMethod(name string) {
 	s.Trace = append(s.Trace, name)
+}
+
+// mockConn is a wrapper around a bytes.Buffer that implements net.Conn
+type mockConn struct {
+	// io.ReadWriter
+	*bytes.Buffer // write buffer
+	rbuf          *bytes.Buffer
+}
+
+func (b *mockConn) Read(p []byte) (n int, err error) {
+	if b.rbuf != nil {
+		return b.rbuf.Read(p)
+	}
+
+	return b.Buffer.Read(p)
+}
+
+func (b *mockConn) Write(p []byte) (n int, err error) {
+	return b.Buffer.Write(p)
+}
+
+func (b *mockConn) Close() error {
+	// No-op.
+	return nil
+}
+
+func (b *mockConn) LocalAddr() net.Addr {
+	return nil
+}
+func (b *mockConn) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (b *mockConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (b *mockConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (b *mockConn) SetWriteDeadline(t time.Time) error {
+	return nil
 }

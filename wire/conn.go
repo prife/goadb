@@ -41,7 +41,7 @@ type Scanner interface {
 }
 
 type IConn interface {
-	io.Closer
+	net.Conn
 	Sender
 	Scanner
 	RoundTripSingleResponse(req []byte) (resp []byte, err error)

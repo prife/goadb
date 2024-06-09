@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-
-	"github.com/prife/goadb/wire"
 )
 
 // RunShellCommand runs the specified commands on a shell on the device.
@@ -77,7 +75,7 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 		return nil, wrapClientError(err, c, "RunCommand")
 	}
 
-	return conn.(*wire.Conn), wrapClientError(err, c, "RunCommand")
+	return conn, wrapClientError(err, c, "RunCommand")
 }
 
 func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
