@@ -84,7 +84,7 @@ var (
 	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+\s*\S+)\s*$`)
 )
 
-func unpackProccess(resp []byte, filter ProcessFilter) (names []Process) {
+func unpackProcess(resp []byte, filter ProcessFilter) (names []Process) {
 	matches := psRegrex.FindAllSubmatch(resp, -1)
 	for _, match := range matches {
 		pid, err := strconv.Atoi(string(match[2]))
@@ -123,7 +123,7 @@ func (d *Device) ListProcesses(filter ProcessFilter) (names []Process, err error
 		}
 	}
 
-	names = unpackProccess(resp, filter)
+	names = unpackProcess(resp, filter)
 	if len(names) == 0 {
 		return nil, errors.New(string(resp))
 	}
