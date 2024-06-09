@@ -109,6 +109,7 @@ func (c *Device) RunCommandToEnd(v2 bool, timeout time.Duration, cmd string, arg
 	return
 }
 
+// RunCommand default timeout is CommandTimeoutShortDefault which is 2 seconds, be careful
 func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
 	return c.RunCommandToEnd(false, c.CmdTimeoutShort, cmd, args...)
 }

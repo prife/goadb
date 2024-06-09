@@ -38,14 +38,23 @@ type server interface {
 	Dial() (wire.IConn, error)
 }
 
-func roundTripSingleResponse(s server, req string) ([]byte, error) {
+func roundTripSingleResponse(s server, req string) (resp []byte, err error) {
 	conn, err := s.Dial()
 	if err != nil {
-		return nil, err
+		return
 	}
 	defer conn.Close()
 
-	return conn.RoundTripSingleResponse([]byte(req))
+	if err = conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		return
+	}
+	if resp, err = conn.RoundTripSingleResponse([]byte(req)); err != nil {
+		return
+	}
+	if err = conn.SetReadDeadline(time.Time{}); err != nil {
+		return
+	}
+	return
 }
 
 type realServer struct {
