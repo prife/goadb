@@ -18,7 +18,7 @@ const (
 	PropProductManu            = "ro.product.manufacturer"
 	PropProductCpuAbi          = "ro.product.cpu.abi"
 	PropBuildVersionSdk        = "ro.build.version.sdk"         // api level
-	PropRroductBuildVersionSdk = "ro.product.build.version.sdk" // api level
+	PropProductBuildVersionSdk = "ro.product.build.version.sdk" // api level
 	PropBuildVersionRelease    = "ro.build.version.release"     // android os version
 	// for vendor
 	PropHwPlatformVersion = "hw_sc.build.platform.version"
@@ -53,8 +53,8 @@ func parseDeviceProperties(resp []byte, filter PropertiesFilter) map[string]stri
 	return properties
 }
 
-// GetProperites adb shell getprop
-func (d *Device) GetProperites(filter PropertiesFilter) (properties AndroidProperties, err error) {
+// GetProperties adb shell getprop
+func (d *Device) GetProperties(filter PropertiesFilter) (properties AndroidProperties, err error) {
 	resp, err := d.RunCommand("getprop")
 	if err != nil {
 		return
@@ -67,7 +67,7 @@ func (d *Device) GetProperites(filter PropertiesFilter) (properties AndroidPrope
 	return
 }
 
-// GetProperites adb shell getprop
+// SetProperty adb shell setprop
 func (d *Device) SetProperty(key, value string) (err error) {
 	resp, err := d.RunCommand("setprop", key, value)
 	_ = resp
@@ -105,14 +105,14 @@ func (a AndroidProperties) ProductModel() (string, error) {
 func (a AndroidProperties) SdkLevel() (int, error) {
 	sdkstr, err := a.GetMapValue(PropBuildVersionSdk)
 	if err != nil {
-		sdkstr, err = a.GetMapValue(PropRroductBuildVersionSdk)
+		sdkstr, err = a.GetMapValue(PropProductBuildVersionSdk)
 		if err != nil {
-			return -1, fmt.Errorf("neither %s nor %s prop found", PropBuildVersionSdk, PropRroductBuildVersionSdk)
+			return -1, fmt.Errorf("neither %s nor %s prop found", PropBuildVersionSdk, PropProductBuildVersionSdk)
 		}
 	}
 	v, err := strconv.Atoi(sdkstr)
 	if err != nil {
-		return 0, fmt.Errorf("parse 'getprop %s': %w", PropRroductBuildVersionSdk, err)
+		return 0, fmt.Errorf("parse 'getprop %s': %w", PropProductBuildVersionSdk, err)
 	}
 	return v, nil
 }

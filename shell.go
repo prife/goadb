@@ -90,7 +90,6 @@ func (c *Device) RunCommandToEnd(v2 bool, timeout time.Duration, cmd string, arg
 	// set read timeout
 	if timeout > 0 {
 		if err = conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			conn.Close()
 			return nil, wrapClientError(err, c, "RunCommand")
 		}
 	}

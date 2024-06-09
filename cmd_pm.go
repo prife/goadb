@@ -67,7 +67,7 @@ func (d *Device) ClearPackageData(packageName string) (err error) {
 	}
 
 	resp = bytes.TrimSpace(resp)
-	// err maybe nil, check response to determin error
+	// err maybe nil, check response to determine error
 	if bytes.Equal(resp, []byte("Success")) {
 		return nil
 	}
