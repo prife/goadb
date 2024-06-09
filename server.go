@@ -90,6 +90,9 @@ func newServer(config ServerConfig) (server, error) {
 func (s *realServer) Dial() (wire.IConn, error) {
 	conn, err := s.config.Dial(s.address)
 	if err != nil {
+		if !s.config.AutoStart {
+			return nil, err
+		}
 		// Attempt to start the server and try again.
 		if err = s.Start(); err != nil {
 			return nil, fmt.Errorf("%w: error starting server for dial, err:%w", wire.ErrServerNotAvailable, err)
