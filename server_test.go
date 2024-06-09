@@ -3,6 +3,7 @@ package adb
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/prife/goadb/wire"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ func TestNewServer_ZeroConfig(t *testing.T) {
 
 type MockDialer struct{}
 
-func (d MockDialer) Dial(address string) (*wire.Conn, error) {
+func (d MockDialer) Dial(address string, timeout time.Duration) (*wire.Conn, error) {
 	return nil, nil
 }
 

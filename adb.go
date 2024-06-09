@@ -4,8 +4,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/prife/goadb/wire"
+)
+
+const (
+	CommandTimeoutShortDefault = time.Second * 2
+	CommandTimeoutLongDefault  = time.Second * 10
 )
 
 // Adb communicates with host services on the adb server.
@@ -45,9 +51,11 @@ func (c *Adb) StartServer() error {
 
 func (c *Adb) Device(descriptor DeviceDescriptor) *Device {
 	return &Device{
-		server:         c.server,
-		descriptor:     descriptor,
-		deviceListFunc: c.ListDevices,
+		server:          c.server,
+		descriptor:      descriptor,
+		deviceListFunc:  c.ListDevices,
+		CmdTimeoutShort: CommandTimeoutShortDefault,
+		CmdTimeoutLong:  CommandTimeoutLongDefault,
 	}
 }
 

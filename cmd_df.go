@@ -200,7 +200,7 @@ func unpackDfV2(resp []byte) (names []DfEntry) {
 // in general, check '/data' in MountedOn, which is supported on Android 5.x ~ Android14
 func (d *Device) DF() (list []DfEntry, err error) {
 	// detect wether support df -h or not
-	resp, err := d.RunCommandToEnd(false, "df", "-h")
+	resp, err := d.RunCommand("df", "-h")
 	if err != nil {
 		return
 	}
@@ -208,7 +208,7 @@ func (d *Device) DF() (list []DfEntry, err error) {
 	// if received too few bytes, means 'df -h' is not supported
 	if len(resp) < 128 {
 		// <= Android 6.x
-		resp, err = d.RunCommandToEnd(false, "df")
+		resp, err = d.RunCommand("df")
 		if err != nil {
 			return
 		}

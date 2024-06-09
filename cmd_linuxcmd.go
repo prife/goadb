@@ -26,7 +26,7 @@ func parseUptime(resp []byte) (uptime float64, err error) {
 
 func (d *Device) Uptime() (uptime float64, err error) {
 	// detect wether support df -h or not
-	resp, err := d.RunCommandToEnd(false, "cat", "/proc/uptime")
+	resp, err := d.RunCommand("cat", "/proc/uptime")
 	if err != nil {
 		return
 	}
@@ -70,7 +70,7 @@ func parseUname(resp []byte) (info LinuxVersion, err error) {
 
 func (d *Device) Uname() (version LinuxVersion, err error) {
 	// detect wether support df -h or not
-	resp, err := d.RunCommandToEnd(false, "cat", "/proc/version")
+	resp, err := d.RunCommand("cat", "/proc/version")
 	if err != nil {
 		return
 	}

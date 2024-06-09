@@ -107,7 +107,7 @@ func unpackProcess(resp []byte, filter ProcessFilter) (names []Process) {
 // ListProcesses run adb shell ps
 func (d *Device) ListProcesses(filter ProcessFilter) (names []Process, err error) {
 	// detect wether support ps -A or not
-	resp, err := d.RunCommandToEnd(false, "ps", "-A")
+	resp, err := d.RunCommand("ps", "-A")
 	if err != nil {
 		return
 	}
@@ -117,7 +117,7 @@ func (d *Device) ListProcesses(filter ProcessFilter) (names []Process, err error
 	// if received too few bytes, means 'ps -A' is not supported
 	if len(resp) < 256 {
 		// <= Android 7.x
-		resp, err = d.RunCommandToEnd(false, "ps")
+		resp, err = d.RunCommand("ps")
 		if err != nil {
 			return
 		}
@@ -197,7 +197,7 @@ func (d *Device) KillPids(list []int, signal int) (err error) {
 		args = append(args, strconv.Itoa(pid))
 	}
 
-	resp, err := d.RunCommandToEnd(false, "kill", args...)
+	resp, err := d.RunCommand("kill", args...)
 	if len(resp) > 0 {
 		err = errors.New(string(resp))
 		if bytes.Contains(resp, []byte("Operation not permitted")) {

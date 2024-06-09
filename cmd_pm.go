@@ -40,7 +40,7 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 		args = append(args, "-3")
 	}
 
-	list, err := d.RunCommand("pm", args...)
+	list, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "pm", args...)
 	if err != nil {
 		return nil, fmt.Errorf("pm "+strings.Join(args, " ")+": %w", err)
 	}
@@ -61,7 +61,7 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 // shell:pm clear <package>
 // 00000000  53 75 63 63 65 73 73 0d  0a                       |Success..|
 func (d *Device) ClearPackageData(packageName string) (err error) {
-	resp, err := d.RunCommand("pm", "clear", packageName)
+	resp, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "pm", "clear", packageName)
 	if err != nil {
 		return err // always tcp error
 	}

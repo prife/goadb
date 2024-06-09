@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/prife/goadb/wire"
 )
@@ -14,15 +15,17 @@ const (
 	AdbExecutableName = "adb"
 
 	// Default port the adb server listens on.
-	AdbPort = 5037
+	AdbPort            = 5037
+	DialTimeoutDefault = time.Second * 3
 )
 
 type ServerConfig struct {
 	// Dialer used to connect to the adb server.
 	Dialer
 	// Path to the adb executable. If empty, the PATH environment variable will be searched.
-	PathToAdb string
-	AutoStart bool
+	PathToAdb   string
+	AutoStart   bool
+	DialTimeout time.Duration
 	// Host and port the adb server is listening on. If not specified, will use the default port on localhost.
 	Host string
 	Port int
@@ -68,6 +71,10 @@ func newServer(config ServerConfig) (server, error) {
 		config.fs = localFilesystem
 	}
 
+	if config.DialTimeout == 0 {
+		config.DialTimeout = DialTimeoutDefault
+	}
+
 	if config.PathToAdb == "" {
 		path, err := config.fs.LookPath(AdbExecutableName)
 		if err != nil {
@@ -88,7 +95,7 @@ func newServer(config ServerConfig) (server, error) {
 // Dial tries to connect to the server. If the first attempt fails, tries starting the server before
 // retrying. If the second attempt fails, returns the error.
 func (s *realServer) Dial() (wire.IConn, error) {
-	conn, err := s.config.Dial(s.address)
+	conn, err := s.config.Dial(s.address, s.config.DialTimeout)
 	if err != nil {
 		if !s.config.AutoStart {
 			return nil, err
@@ -98,7 +105,7 @@ func (s *realServer) Dial() (wire.IConn, error) {
 			return nil, fmt.Errorf("%w: error starting server for dial, err:%w", wire.ErrServerNotAvailable, err)
 		}
 
-		conn, err = s.config.Dial(s.address)
+		conn, err = s.config.Dial(s.address, s.config.DialTimeout)
 		if err != nil {
 			return nil, err
 		}
