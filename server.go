@@ -126,7 +126,10 @@ func (s *realServer) Dial() (wire.IConn, error) {
 func (s *realServer) Start() error {
 	output, err := s.config.fs.CmdCombinedOutput(s.config.PathToAdb /*"-L", fmt.Sprintf("tcp:%s", s.address),*/, "start-server")
 	outputStr := strings.TrimSpace(string(output))
-	return fmt.Errorf("%w: error starting server: %w\noutput:\n%s", wire.ErrServerNotAvailable, err, outputStr)
+	if err != nil {
+		return fmt.Errorf("%w: error starting server: %w\noutput:\n%s", wire.ErrServerNotAvailable, err, outputStr)
+	}
+	return nil
 }
 
 // filesystem abstracts interactions with the local filesystem for testability.
