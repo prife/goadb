@@ -84,7 +84,7 @@ var (
 	psRegrex = regexp.MustCompile(`(?m)^(\S+)\s+(\d+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+\s*\S+)\s*$`)
 )
 
-func unpackProccess(resp []byte, filter ProcessFilter) (names []Process) {
+func unpackProcess(resp []byte, filter ProcessFilter) (names []Process) {
 	matches := psRegrex.FindAllSubmatch(resp, -1)
 	for _, match := range matches {
 		pid, err := strconv.Atoi(string(match[2]))
@@ -107,7 +107,7 @@ func unpackProccess(resp []byte, filter ProcessFilter) (names []Process) {
 // ListProcesses run adb shell ps
 func (d *Device) ListProcesses(filter ProcessFilter) (names []Process, err error) {
 	// detect wether support ps -A or not
-	resp, err := d.RunCommandToEnd(false, "ps", "-A")
+	resp, err := d.RunCommand("ps", "-A")
 	if err != nil {
 		return
 	}
@@ -117,13 +117,13 @@ func (d *Device) ListProcesses(filter ProcessFilter) (names []Process, err error
 	// if received too few bytes, means 'ps -A' is not supported
 	if len(resp) < 256 {
 		// <= Android 7.x
-		resp, err = d.RunCommandToEnd(false, "ps")
+		resp, err = d.RunCommand("ps")
 		if err != nil {
 			return
 		}
 	}
 
-	names = unpackProccess(resp, filter)
+	names = unpackProcess(resp, filter)
 	if len(names) == 0 {
 		return nil, errors.New(string(resp))
 	}
@@ -197,7 +197,7 @@ func (d *Device) KillPids(list []int, signal int) (err error) {
 		args = append(args, strconv.Itoa(pid))
 	}
 
-	resp, err := d.RunCommandToEnd(false, "kill", args...)
+	resp, err := d.RunCommand("kill", args...)
 	if len(resp) > 0 {
 		err = errors.New(string(resp))
 		if bytes.Contains(resp, []byte("Operation not permitted")) {

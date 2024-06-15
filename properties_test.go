@@ -26,7 +26,7 @@ func Test_parseDeviceProperties(t *testing.T) {
 func TestDevice_GetProperites(t *testing.T) {
 	assert.NotNil(t, adbclient)
 	d := adbclient.Device(AnyDevice())
-	m, err := d.GetProperites(func(k, v string) bool {
+	m, err := d.GetProperties(func(k, v string) bool {
 		return strings.HasPrefix(k, "ro.")
 	})
 	assert.Nil(t, err)

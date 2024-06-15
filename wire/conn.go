@@ -41,7 +41,7 @@ type Scanner interface {
 }
 
 type IConn interface {
-	io.Closer
+	net.Conn
 	Sender
 	Scanner
 	RoundTripSingleResponse(req []byte) (resp []byte, err error)
@@ -99,7 +99,7 @@ func (s *Conn) SendMessage(msg []byte) error {
 }
 
 // RoundTripSingleResponse sends a message to the server, and reads a single
-// message response. If the reponse has a failure status code, returns it as an error.
+// message response. If the response has a failure status code, returns it as an error.
 func (conn *Conn) RoundTripSingleResponse(req []byte) (resp []byte, err error) {
 	if err = conn.SendMessage(req); err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (conn *Conn) Close() error {
 	return nil
 }
 
-// TODO(zach): All EOF errors returned from networoking calls should use ConnectionResetError.
+// TODO(zach): All EOF errors returned from networking calls should use ConnectionResetError.
 func isFailureStatus(status string) bool {
 	return status == StatusFailure
 }

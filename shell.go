@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-
-	"github.com/prife/goadb/wire"
+	"time"
 )
 
 // RunShellCommand runs the specified commands on a shell on the device.
@@ -51,7 +50,7 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 		return nil, wrapClientError(err, c, "RunCommand")
 	}
 
-	conn, err := c.dialDevice()
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
 	if err != nil {
 		return nil, wrapClientError(err, c, "RunCommand")
 	}
@@ -72,26 +71,29 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 		conn.Close()
 		return nil, wrapClientError(err, c, "RunCommand")
 	}
-	if _, err = conn.ReadStatus(req); err != nil {
+
+	if _, err = readStatusWithTimeout(conn, req, c.CmdTimeoutShort); err != nil {
 		conn.Close()
 		return nil, wrapClientError(err, c, "RunCommand")
 	}
 
-	return conn.(*wire.Conn), wrapClientError(err, c, "RunCommand")
+	return conn, wrapClientError(err, c, "RunCommand")
 }
 
-func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
-	return c.RunCommandToEnd(false, cmd, args...)
-}
-
-func (c *Device) RunCommandToEnd(v2 bool, cmd string, args ...string) (resp []byte, err error) {
-	reader, err := c.RunShellCommand(v2, cmd, args...)
+func (c *Device) RunCommandToEnd(v2 bool, timeout time.Duration, cmd string, args ...string) (resp []byte, err error) {
+	conn, err := c.RunShellCommand(v2, cmd, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer conn.Close()
 
-	resp, err = io.ReadAll(reader)
+	// set read timeout
+	if timeout > 0 {
+		if err = conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return nil, wrapClientError(err, c, "RunCommand")
+		}
+	}
+	resp, err = io.ReadAll(conn)
 	if err != nil {
 		return
 	}
@@ -105,4 +107,9 @@ func (c *Device) RunCommandToEnd(v2 bool, cmd string, args ...string) (resp []by
 		}
 	}
 	return
+}
+
+// RunCommand default timeout is CommandTimeoutShortDefault which is 2 seconds, be careful
+func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
+	return c.RunCommandToEnd(false, c.CmdTimeoutShort, cmd, args...)
 }

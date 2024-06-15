@@ -131,7 +131,7 @@ func TestDevice_Mkdirs_PermissionDeny(t *testing.T) {
 	}
 }
 
-func TestDevice_Rm_NonExsitAndPermissionDeny(t *testing.T) {
+func TestDevice_Rm_NonExistAndPermissionDeny(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	err := d.Rm([]string{"/data/a", "/data/b", "/data/c"})
 	if err != nil {
@@ -180,7 +180,7 @@ func TestDeviceOpenDirReader(t *testing.T) {
 	}
 }
 
-func TestDeviceOpenDirReader_NonExsited(t *testing.T) {
+func TestDeviceOpenDirReader_NonExisted(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	_, dr, err := d.OpenDirReader("/non-exsited")
 	assert.ErrorIs(t, err, wire.ErrFileNoExist)
@@ -240,8 +240,8 @@ func TestDevice_PushFile(t *testing.T) {
 
 	// push to dir
 	err := d.PushFile(path.Join(pwd, "sync.go"), "/sdcard/",
-		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
-			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		func(totalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totalSize, percent, speedMBPerSecond)
 		})
 	if err != nil {
 		t.Fatal(err)
@@ -249,8 +249,8 @@ func TestDevice_PushFile(t *testing.T) {
 
 	// push to file
 	err = d.PushFile(testZip, "/sdcard/test.zip",
-		func(totoalSize, sentSize int64, percent, speedMBPerSecond float64) {
-			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totoalSize, percent, speedMBPerSecond)
+		func(totalSize, sentSize int64, percent, speedMBPerSecond float64) {
+			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totalSize, percent, speedMBPerSecond)
 		})
 	if err != nil {
 		t.Fatal(err)

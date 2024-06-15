@@ -17,7 +17,7 @@ type Activity struct {
 	Component string
 }
 
-// UnpackActivity extract <pacakge>/<component> from bytes
+// UnpackActivity extract <package>/<component> from bytes
 func UnpackActivity(resp []byte) (l []Activity) {
 	matches := activityRegrex.FindAllSubmatch(resp, -1)
 	m := make(map[string]interface{})
@@ -53,12 +53,12 @@ func UnpackActivity(resp []byte) (l []Activity) {
 // references:
 // https://stackoverflow.com/questions/13193592/getting-the-name-of-the-current-activity-via-adb
 func (d *Device) GetCurrentActivity() (app []Activity, err error) {
-	resp, err := d.RunCommand("dumpsys", "activity", "activities", "|", "grep", "ResumedActivity")
+	resp, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "dumpsys", "activity", "activities", "|", "grep", "ResumedActivity")
 	if err != nil {
 		return // tcp error
 	}
 
-	// err maybe nil, check response to determin error
+	// err maybe nil, check response to determine error
 	if len(resp) > 0 {
 		app = UnpackActivity(resp)
 		if len(app) == 0 {
@@ -92,31 +92,31 @@ func (d *Device) GetCurrentActivity() (app []Activity, err error) {
 // StartApp launch app by it's package name
 func (d *Device) StartApp(packageName string) (resp []byte, err error) {
 	// https://stackoverflow.com/questions/4567904/how-to-start-an-application-using-android-adb-tools
-	resp, err = d.RunCommand("monkey", "-p", packageName, "1")
+	resp, err = d.RunCommandToEnd(false, d.CmdTimeoutLong, "monkey", "-p", packageName, "1")
 	if err != nil {
 		return // tcp error
 	}
 
-	// err maybe nil, check response to determin error
+	// err maybe nil, check response to determine error
 	if bytes.Contains(resp, []byte("Events injected: ")) {
 		return
 	} else if bytes.Contains(resp, []byte("No activities found to run, monkey aborted")) {
 		err = errors.New("no activities found")
 		return
 	}
-	err = errors.New("unrecgnized error")
+	err = errors.New("unrecognized error")
 	return
 }
 
 // ForceStopPackage force-stop app
 // Android 14: don't need permission
 func (d *Device) ForceStopApp(packageName string) (err error) {
-	resp, err := d.RunCommand("am", "force-stop", packageName)
+	resp, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "am", "force-stop", packageName)
 	if err != nil {
 		return err // tcp error
 	}
 
-	// err maybe nil, check response to determin error
+	// err maybe nil, check response to determine error
 	if len(resp) == 0 {
 		return
 	}

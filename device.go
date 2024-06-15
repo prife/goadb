@@ -15,17 +15,6 @@ import (
 // method is called.
 var MtimeOfClose = time.Time{}
 
-// Device communicates with a specific Android device.
-// To get an instance, call Device() on an Adb.
-type Device struct {
-	server     server
-	descriptor DeviceDescriptor
-
-	// Used to get device info.
-	deviceListFunc func() ([]*DeviceInfo, error)
-	deviceFeatures map[string]bool
-}
-
 const (
 	FeatureShell2                    = "shell_v2"
 	FeatureCmd                       = "cmd"
@@ -48,6 +37,20 @@ const (
 	//openscreen_mdns
 	//push_sync
 )
+
+// Device communicates with a specific Android device.
+// To get an instance, call Device() on an Adb.
+type Device struct {
+	server     server
+	descriptor DeviceDescriptor
+
+	// Used to get device info.
+	deviceListFunc func() ([]*DeviceInfo, error)
+	deviceFeatures map[string]bool
+
+	CmdTimeoutShort time.Duration
+	CmdTimeoutLong  time.Duration
+}
 
 func (c *Device) String() string {
 	return c.descriptor.String()
@@ -129,7 +132,7 @@ func (c *Device) ForwardAbstract(name string) (net.Conn, error) {
 }
 
 func (c *Device) Forward(addr string) (net.Conn, error) {
-	conn, err := c.dialDevice()
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
 	if err != nil {
 		return nil, wrapClientError(err, c, "forward")
 	}
@@ -137,7 +140,8 @@ func (c *Device) Forward(addr string) (net.Conn, error) {
 		conn.Close()
 		return nil, wrapClientError(err, c, "forward")
 	}
-	if _, err = conn.ReadStatus(addr); err != nil {
+
+	if _, err = readStatusWithTimeout(conn, addr, c.CmdTimeoutShort); err != nil {
 		conn.Close()
 		return nil, wrapClientError(err, c, "forward")
 	}
@@ -155,7 +159,7 @@ func (c *Device) Forward(addr string) (net.Conn, error) {
 //
 // Source: https://android.googlesource.com/platform/system/core/+/master/adb/SERVICES.TXT
 func (c *Device) Remount() (string, error) {
-	conn, err := c.dialDevice()
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
 	if err != nil {
 		return "", wrapClientError(err, c, "Remount")
 	}
@@ -236,7 +240,7 @@ func (c *Device) getAttribute(attr string) (string, error) {
 }
 
 func (c *Device) NewSyncConn() (*wire.SyncConn, error) {
-	conn, err := c.dialDevice()
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +249,7 @@ func (c *Device) NewSyncConn() (*wire.SyncConn, error) {
 	if err := conn.SendMessage([]byte("sync:")); err != nil {
 		return nil, err
 	}
-	if _, err := conn.ReadStatus("sync"); err != nil {
+	if _, err = readStatusWithTimeout(conn, "sync", c.CmdTimeoutShort); err != nil {
 		return nil, err
 	}
 
@@ -255,7 +259,7 @@ func (c *Device) NewSyncConn() (*wire.SyncConn, error) {
 
 // dialDevice switches the connection to communicate directly with the device
 // by requesting the transport defined by the DeviceDescriptor.
-func (c *Device) dialDevice() (wire.IConn, error) {
+func (c *Device) dialDevice(timeout time.Duration) (wire.IConn, error) {
 	conn, err := c.server.Dial()
 	if err != nil {
 		return nil, err
@@ -267,12 +271,25 @@ func (c *Device) dialDevice() (wire.IConn, error) {
 		return nil, fmt.Errorf("error connecting to device '%s': %w", c.descriptor, err)
 	}
 
-	if _, err = conn.ReadStatus(req); err != nil {
+	if _, err = readStatusWithTimeout(conn, req, timeout); err != nil {
 		conn.Close()
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+func readStatusWithTimeout(conn wire.IConn, req string, timeout time.Duration) (resp string, err error) {
+	if err = conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return
+	}
+	if resp, err = conn.ReadStatus(req); err != nil {
+		return
+	}
+	if err = conn.SetReadDeadline(time.Time{}); err != nil {
+		return
+	}
+	return
 }
 
 // prepareCommandLine validates the command and argument strings, quotes

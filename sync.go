@@ -92,16 +92,16 @@ func (c *Device) Mkdirs(list []string) error {
 
 // adb shell mkdir [-p] <dir1> <dir2> ...
 func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
-	var commonds []string
+	var commands []string
 	var commandsLen int
 
 	var errs []error
 	if withParent {
-		commonds = append(commonds, "-p")
+		commands = append(commands, "-p")
 	}
 	for _, l := range list {
 		if commandsLen+len(l) > 32768 {
-			resp, err := c.RunCommand("mkdir", commonds...)
+			resp, err := c.RunCommand("mkdir", commands...)
 			if err != nil {
 				return err
 			}
@@ -109,19 +109,19 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 			if len(resp) > 0 {
 				errs = filterFileExistedError(resp)
 			}
-			commonds = make([]string, 0)
+			commands = make([]string, 0)
 			if withParent {
-				commonds = append(commonds, "-p")
+				commands = append(commands, "-p")
 			}
 			commandsLen = 0
 		}
 
-		commonds = append(commonds, l)
+		commands = append(commands, l)
 		commandsLen = commandsLen + len(l) + 1 // and one space
 	}
 
 	if commandsLen > 0 {
-		resp, err := c.RunCommand("mkdir", commonds...)
+		resp, err := c.RunCommand("mkdir", commands...)
 		if err != nil {
 			return err
 		}
@@ -136,15 +136,15 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 // Rm run `adb shell rm -rf xx xx`
 // it returns is meaning less in most cases, so just ignore error is ok
 func (c *Device) Rm(list []string) error {
-	var commonds []string
+	var commands []string
 	var commandsLen int
 
 	var errs []error
 
-	commonds = append(commonds, "-rf")
+	commands = append(commands, "-rf")
 	for _, l := range list {
 		if commandsLen+len(l) > (32768 - 7) { // len('rm -rf ') == 6
-			resp, err := c.RunCommand("rm", commonds...)
+			resp, err := c.RunCommand("rm", commands...)
 			if err != nil {
 				return err
 			}
@@ -154,17 +154,17 @@ func (c *Device) Rm(list []string) error {
 			}
 
 			// reset commands
-			commonds = make([]string, 0)
-			commonds = append(commonds, "-rf")
+			commands = make([]string, 0)
+			commands = append(commands, "-rf")
 			commandsLen = 0
 		}
 
-		commonds = append(commonds, l)
+		commands = append(commands, l)
 		commandsLen = commandsLen + len(l) + 1 // and one space
 	}
 
 	if commandsLen > 0 {
-		resp, err := c.RunCommand("rm", commonds...)
+		resp, err := c.RunCommand("rm", commands...)
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (c *Device) Rm(list []string) error {
 	return errors.Join(errs...)
 }
 
-func (c *Device) PushFile(localPath, remotePath string, handler func(totoalSize, sentSize int64, percent, speedMBPerSecond float64)) error {
+func (c *Device) PushFile(localPath, remotePath string, handler func(totalSize, sentSize int64, percent, speedMBPerSecond float64)) error {
 	linfo, err := os.Lstat(localPath)
 	if err != nil {
 		return err
