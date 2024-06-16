@@ -11,7 +11,7 @@ import (
 
 const (
 	CommandTimeoutShortDefault = time.Second * 2
-	CommandTimeoutLongDefault  = time.Second * 10
+	CommandTimeoutLongDefault  = time.Second * 30
 )
 
 // Adb communicates with host services on the adb server.

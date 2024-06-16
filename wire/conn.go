@@ -10,7 +10,8 @@ import (
 const (
 	// The official implementation of adb imposes an undocumented 255-byte limit
 	// on messages.
-	MaxMessageLength = 255
+	MaxPayloadV1Length = 4 * 1024
+	MaxPayload         = 1024 * 1024
 	// Chunks cannot be longer than 64k.
 	SyncMaxChunkSize = 64 * 1024
 
@@ -88,7 +89,7 @@ func (c *Conn) NewSyncConn() *SyncConn {
 }
 
 func (s *Conn) SendMessage(msg []byte) error {
-	if len(msg) > MaxMessageLength {
+	if len(msg) > MaxPayloadV1Length {
 		return fmt.Errorf("message length exceeds maximum:%d", len(msg))
 	}
 
