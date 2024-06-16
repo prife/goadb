@@ -204,12 +204,18 @@ func (c *Device) PushFile(localPath, remotePath string, handler func(totalSize, 
 	total := linfo.Size()
 	sent := float64(0)
 	startTime := time.Now()
-	err = fconn.PushFile(localPath, remotePath, func(n uint64) {
-		sent = sent + float64(n)
-		percent := float64(sent) / float64(total) * 100
-		speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
-		handler(total, int64(sent), percent, speedMBPerSecond)
-	})
+
+	var syncHandler func(n uint64)
+	if handler != nil {
+		syncHandler = func(n uint64) {
+			sent = sent + float64(n)
+			percent := float64(sent) / float64(total) * 100
+			speedMBPerSecond := float64(sent) * float64(time.Second) / 1024.0 / 1024.0 / (float64(time.Since(startTime)))
+			handler(total, int64(sent), percent, speedMBPerSecond)
+		}
+	}
+
+	err = fconn.PushFile(localPath, remotePath, syncHandler)
 	return err
 }
 

@@ -525,13 +525,21 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
 				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
 				if speedMBPerSecond == math.Inf(+1) {
-					handler(totalFiles, sentFiles, target, percent, 100, nil) // as 100MB/s
+					if handler != nil {
+						handler(totalFiles, sentFiles, target, percent, 100, nil) // as 100MB/s
+					}
+
 				} else {
-					handler(totalFiles, sentFiles, target, percent, speedMBPerSecond, nil)
+					if handler != nil {
+						handler(totalFiles, sentFiles, target, percent, speedMBPerSecond, nil)
+					}
+
 				}
 			})
 			if err != nil {
-				handler(totalFiles, sentFiles, target, percent, 0, err)
+				if handler != nil {
+					handler(totalFiles, sentFiles, target, percent, 0, err)
+				}
 			}
 			return nil
 		})
