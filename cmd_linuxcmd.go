@@ -209,3 +209,131 @@ func (d *Device) GetMemoryTotal() (totalInKb uint64, err error) {
 	}
 	return
 }
+
+type Screen struct {
+	Width  int
+	Height int
+}
+
+type DisplaySizeInfo struct {
+	Physical Screen
+	Override Screen
+}
+
+var (
+	rectRegex = regexp.MustCompile(`(\d+)x(\d+)`)
+)
+
+// HWALP:/ $ wm size
+// Physical size: 1440x2560
+// Override size: 720x1280
+func parseDisplaySize(resp []byte) (display DisplaySizeInfo, err error) {
+	lines := bytes.Split(resp, []byte("\n"))
+
+	var found bool
+	for _, line := range lines {
+		matches := rectRegex.FindSubmatch(line)
+		if len(matches) == 0 {
+			continue
+		}
+		width, _ := strconv.ParseInt(string(matches[1]), 0, 32)
+		Height, _ := strconv.ParseInt(string(matches[2]), 0, 32)
+		if bytes.Contains(line, []byte("Physical")) {
+			display.Physical.Width = int(width)
+			display.Physical.Height = int(Height)
+			found = true
+		} else if bytes.Contains(line, []byte("Override")) {
+			display.Override.Width = int(width)
+			display.Override.Height = int(Height)
+			found = true
+		}
+	}
+
+	if !found {
+		err = fmt.Errorf("parse failed")
+	}
+	return
+}
+
+// GetDisplayDefault wm size
+func (d *Device) GetDefaultDisplaySize() (display DisplaySizeInfo, err error) {
+	resp, err := d.RunCommand("wm size")
+	if err != nil {
+		return
+	}
+	return parseDisplaySize(resp)
+}
+
+type CpuInfo struct {
+	// Name is the product name of this CPU.
+	Name string
+	// Vendor is the vendor of this CPU.
+	Vendor string
+	// Architecture is the architecture that this CPU implements.
+	Architecture string
+	// Cores is the number of cores in this CPU.
+	Cores     uint32
+	Frequency float64
+}
+
+var (
+	cpuInfoRegex = regexp.MustCompile(`(?m)(\w+\s*\w+)\s*:\s*(.*)$`)
+)
+
+type CpuInfoProp struct {
+	Key   string
+	Value string
+}
+
+func parseCpuInfo(resp []byte) (cpuInfo []CpuInfoProp, err error) {
+	matches := cpuInfoRegex.FindAllSubmatch(resp, -1)
+	if len(matches) == 0 {
+		err = fmt.Errorf("invalid data")
+		return
+	}
+
+	for _, match := range matches {
+		// fmt.Printf("[%s] : [%s]\n", match[1], match[2])
+		cpuInfo = append(cpuInfo, CpuInfoProp{Key: string(match[1]), Value: string(match[2])})
+	}
+	return
+}
+
+// GetCpuInfo get cpu information
+func (d *Device) GetCpuInfo() (cpuInfo CpuInfo, err error) {
+	resp, err := d.RunCommand("cat /proc/cpuinfo")
+	if err != nil {
+		return
+	}
+	infos, err := parseCpuInfo(resp)
+	if err != nil {
+		return
+	}
+	for _, kv := range infos {
+		switch kv.Key {
+		case "Hardware": // optional
+			cpuInfo.Name = kv.Value
+		case "processor":
+			number, _ := strconv.Atoi(kv.Value)
+			cpuInfo.Cores = uint32(number) + 1
+		case "CPU architecture":
+			arch, _ := strconv.Atoi(kv.Value)
+			if arch >= 8 {
+				cpuInfo.Architecture = "arm64"
+			}
+		}
+	}
+
+	// get cores
+	// coreInfo, err := device.RunCommand("ls", "/sys/devices/system/cpu/")
+
+	// get frequency
+	freqInfo, err := d.RunCommand("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq")
+	if err != nil {
+		return
+	}
+	freqTotal, _ := strconv.ParseUint(string(bytes.TrimSpace(freqInfo)), 10, 32)
+	freq := float64(freqTotal/100000) / 10.0
+	cpuInfo.Frequency = freq
+	return
+}

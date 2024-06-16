@@ -1,10 +1,13 @@
 package adb
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"time"
+
+	"github.com/prife/goadb/wire"
 )
 
 // RunShellCommand runs the specified commands on a shell on the device.
@@ -112,4 +115,35 @@ func (c *Device) RunCommandToEnd(v2 bool, timeout time.Duration, cmd string, arg
 // RunCommand default timeout is CommandTimeoutShortDefault which is 2 seconds, be careful
 func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
 	return c.RunCommandToEnd(false, c.CmdTimeoutShort, cmd, args...)
+}
+
+// RunCommandCtx wrap RunShellCommand with context
+func (c *Device) RunCommandCtx(ctx context.Context, log func(buf []byte), cmd string, args ...string) error {
+	conn, err := c.RunShellCommand(false, cmd, args...)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	buf := make([]byte, wire.SyncMaxChunkSize)
+	ch := make(chan interface{})
+	go func() {
+		for {
+			n, err := conn.Read(buf)
+			if err != nil {
+				// fmt.Println("error: ", err)
+				close(ch)
+				return
+			}
+			if log != nil {
+				log((buf[:n]))
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-ch:
+		return io.EOF
+	}
 }

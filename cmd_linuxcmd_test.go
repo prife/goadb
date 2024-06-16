@@ -156,3 +156,106 @@ WritebackTmp:          0 kB
 	assert.Equal(t, info["MemFree"], uint64(430780))
 	assert.Equal(t, info["MemAvailable"], uint64(17117864))
 }
+
+func Test_parseDisplaySize(t *testing.T) {
+	output := []byte(`
+Physical size: 1440x2560
+Override size: 720x1280
+`)
+	info, err := parseDisplaySize(output)
+	assert.Nil(t, err)
+	assert.Equal(t, info.Physical.Width, 1440)
+	assert.Equal(t, info.Physical.Height, 2560)
+	assert.Equal(t, info.Override.Width, 720)
+	assert.Equal(t, info.Override.Height, 1280)
+
+	output = []byte("Physical size: 1440x2560\r\nOverride size: 720x1280\r\n\r\n")
+	info, err = parseDisplaySize(output)
+	assert.Nil(t, err)
+	assert.Equal(t, info.Physical.Width, 1440)
+	assert.Equal(t, info.Physical.Height, 2560)
+	assert.Equal(t, info.Override.Width, 720)
+	assert.Equal(t, info.Override.Height, 1280)
+}
+
+func Test_parseCpuInfo(t *testing.T) {
+	output := []byte(`
+Processor	: AArch64 Processor rev 2 (aarch64)
+processor	: 0
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd03
+CPU revision	: 4
+
+processor	: 1
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd03
+CPU revision	: 4
+
+processor	: 2
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd03
+CPU revision	: 4
+
+processor	: 3
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd03
+CPU revision	: 4
+
+processor	: 4
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd09
+CPU revision	: 2
+
+processor	: 5
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd09
+CPU revision	: 2
+
+processor	: 6
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd09
+CPU revision	: 2
+
+processor	: 7
+BogoMIPS	: 3.84
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd09
+CPU revision	: 2
+
+Hardware	: Hisilicon Kirin970
+`)
+	info, err := parseCpuInfo(output)
+	_ = info
+	_ = err
+}

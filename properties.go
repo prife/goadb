@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -67,6 +68,23 @@ func (d *Device) GetProperties(filter PropertiesFilter) (properties AndroidPrope
 	return
 }
 
+func (d *Device) GetProperty(name string) (resp []byte, err error) {
+	resp, err = d.RunCommand("getprop", name)
+	if err != nil {
+		return
+	}
+	resp = bytes.TrimSpace(resp)
+	return
+}
+
+func (d *Device) BootCompleted() (bool, error) {
+	booted, err := d.GetProperty(PropSysBootCompleted)
+	if err != nil {
+		return false, err
+	}
+	return string(booted) == "1", nil
+}
+
 // SetProperty adb shell setprop
 func (d *Device) SetProperty(key, value string) (err error) {
 	resp, err := d.RunCommand("setprop", key, value)
@@ -100,6 +118,10 @@ func (a AndroidProperties) ProductManufacturer() (string, error) {
 
 func (a AndroidProperties) ProductModel() (string, error) {
 	return a.GetMapValue(PropProductModel)
+}
+
+func (a AndroidProperties) CpuAbi() (string, error) {
+	return a.GetMapValue(PropProductCpuAbi)
 }
 
 func (a AndroidProperties) SdkLevel() (int, error) {

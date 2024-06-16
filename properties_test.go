@@ -61,4 +61,8 @@ func TestDevice_GetProperites(t *testing.T) {
 	serial, err := m.Serial()
 	assert.Nil(t, err)
 	fmt.Println("serial:", serial)
+
+	booted, err := d.BootCompleted()
+	assert.Nil(t, err)
+	fmt.Println("booted:", booted)
 }

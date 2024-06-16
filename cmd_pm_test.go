@@ -2,6 +2,7 @@ package adb_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	adb "github.com/prife/goadb"
@@ -59,4 +60,14 @@ func TestDevice_ClearPackageData(t *testing.T) {
 		assert.ErrorIs(t, err, adb.ErrSecurityException)
 		fmt.Println(err)
 	}
+}
+
+func TestDevice_UninstallPackage(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.UninstallPackage("non-existed-app")
+	assert.True(t, strings.Contains(err.Error(), "DELETE_FAILED_INTERNAL_ERROR"))
+
+	err = d.UninstallPackage("com.tencent.wetestdemo")
+	assert.Nil(t, err)
 }

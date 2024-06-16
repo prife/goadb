@@ -80,3 +80,24 @@ func (d *Device) ClearPackageData(packageName string) (err error) {
 	}
 	return
 }
+
+// UninstallPackage uninstall package
+// HWALP:/ $ pm uninstall com.tencent.wetest.demo
+// Success
+// HWALP:/ $ pm uninstall non-existed-app
+// Failure [DELETE_FAILED_INTERNAL_ERROR]
+func (d *Device) UninstallPackage(packageName string) (err error) {
+	resp, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "pm", "uninstall", packageName)
+	if err != nil {
+		return err // always tcp error
+	}
+
+	resp = bytes.TrimSpace(resp)
+	// err maybe nil, check response to determine error
+	if bytes.Equal(resp, []byte("Success")) {
+		return nil
+	} else if bytes.Contains(resp, []byte("Failure")) {
+		return errors.New(string(resp))
+	}
+	return errors.New("unknown error: " + string(resp))
+}
