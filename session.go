@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/prife/goadb/wire"
 )
 
 // A Session represents a connection to a remote command or shell.
@@ -30,7 +32,7 @@ type Session struct {
 	Stdout io.Writer
 	Stderr io.Writer
 
-	transport      *transport
+	transport      *wire.Conn
 	errorChan      chan error
 	abort          bool
 	handlesToClose []io.Closer
@@ -64,14 +66,12 @@ func (w Waitmsg) ExitStatus() int {
 }
 
 // NewSession opens a new Session for this client. (A session is a remote execution of a program.)
-func (d Device) NewSession() (*Session, error) {
-	tp, err := d.createDeviceTransport()
+func (d *Device) NewSession() (*Session, error) {
+	conn, err := d.dialDevice(d.CmdTimeoutShort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transport: %w", err)
 	}
-	return &Session{
-		transport: &tp,
-	}, nil
+	return &Session{transport: conn.(*wire.Conn)}, nil
 }
 
 // Close frees resources associated with this Session, and aborts any running command.
@@ -143,17 +143,17 @@ func (s *Session) Start(cmd string) error {
 		return errors.New("Start() already called")
 	}
 
-	if err := s.transport.Send(fmt.Sprintf("shell,v2,raw:%s", cmd)); err != nil {
+	req := fmt.Sprintf("shell,v2,raw:%s", cmd)
+	if err := s.transport.SendMessage([]byte(req)); err != nil {
 		return fmt.Errorf("failed to send shell cmd: %w", err)
 	}
-	if err := s.transport.VerifyResponse(); err != nil {
+
+	if _, err := readStatusWithTimeout(s.transport, req, CommandTimeoutShortDefault); err != nil {
+		s.transport.Close()
 		return fmt.Errorf("failed to verify shell cmd: %w", err)
 	}
-	shellTp, err := s.transport.CreateShellTransport()
-	if err != nil {
-		return fmt.Errorf("failed to create shell transport: %w", err)
-	}
 
+	shellTp := newShellTransport(s.transport.Conn, 0)
 	s.errorChan = make(chan error)
 	s.abort = false
 	// Copy stdin to remote command

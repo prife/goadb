@@ -39,7 +39,7 @@ func (s *shellTransport) Send(command shellMessageType, data []byte) (err error)
 	if err := msg.WriteByte(byte(command)); err != nil {
 		return fmt.Errorf("shell transport write: %w", err)
 	}
-	if err = binary.Write(msg, binary.LittleEndian, int32(len(data))); err != nil {
+	if err := binary.Write(msg, binary.LittleEndian, int32(len(data))); err != nil {
 		return fmt.Errorf("shell transport write: %w", err)
 	}
 	if _, err := msg.Write(data); err != nil {
@@ -47,7 +47,8 @@ func (s *shellTransport) Send(command shellMessageType, data []byte) (err error)
 	}
 
 	debugLog(fmt.Sprintf("--> %v", msg.Bytes()))
-	return _send(s.sock, msg.Bytes())
+	_, err = s.sock.Write(msg.Bytes())
+	return
 }
 
 func (s *shellTransport) Read() (command shellMessageType, data []byte, err error) {
@@ -63,16 +64,13 @@ func (s *shellTransport) Read() (command shellMessageType, data []byte, err erro
 	if err != nil {
 		return command, nil, fmt.Errorf("failed to read response msg len: %w", err)
 	}
-	data, err = s.ReadBytesN(int(msgLen))
+
+	data = make([]byte, int(msgLen))
+	_, err = io.ReadFull(s.sock, data)
 	if err != nil {
 		return command, data, fmt.Errorf("failed to read response msg body: %w", err)
 	}
 	return command, data, nil
-}
-
-func (s *shellTransport) ReadBytesN(size int) (raw []byte, err error) {
-	_ = s.sock.SetReadDeadline(time.Time{})
-	return _readN(s.sock, size)
 }
 
 func (s *shellTransport) Close() (err error) {
