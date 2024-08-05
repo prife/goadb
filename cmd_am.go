@@ -53,7 +53,7 @@ func UnpackActivity(resp []byte) (l []Activity) {
 // references:
 // https://stackoverflow.com/questions/13193592/getting-the-name-of-the-current-activity-via-adb
 func (d *Device) GetCurrentActivity() (app []Activity, err error) {
-	resp, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "dumpsys", "activity", "activities", "|", "grep", "ResumedActivity")
+	resp, err := d.RunCommandToEnd(d.CmdTimeoutLong, "dumpsys", "activity", "activities", "|", "grep", "ResumedActivity")
 	if err != nil {
 		return // tcp error
 	}
@@ -92,7 +92,7 @@ func (d *Device) GetCurrentActivity() (app []Activity, err error) {
 // StartApp launch app by it's package name
 func (d *Device) StartApp(packageName string) (resp []byte, err error) {
 	// https://stackoverflow.com/questions/4567904/how-to-start-an-application-using-android-adb-tools
-	resp, err = d.RunCommandToEnd(false, d.CmdTimeoutLong, "monkey", "-p", packageName, "1")
+	resp, err = d.RunCommandToEnd(d.CmdTimeoutLong, "monkey", "-p", packageName, "1")
 	if err != nil {
 		return // tcp error
 	}
@@ -111,7 +111,7 @@ func (d *Device) StartApp(packageName string) (resp []byte, err error) {
 // ForceStopPackage force-stop app
 // Android 14: don't need permission
 func (d *Device) ForceStopApp(packageName string) (err error) {
-	resp, err := d.RunCommandToEnd(false, d.CmdTimeoutLong, "am", "force-stop", packageName)
+	resp, err := d.RunCommandToEnd(d.CmdTimeoutLong, "am", "force-stop", packageName)
 	if err != nil {
 		return err // tcp error
 	}
