@@ -56,6 +56,8 @@ func (c *Device) String() string {
 	return c.descriptor.String()
 }
 
+// Serial return the serial in adb-server, not the serial of the connected device
+// for adb connect 106.52.95.27:42370, return the "106.52.95.27:42370"
 func (c *Device) Serial() (string, error) {
 	attr, err := c.getAttribute("get-serialno")
 	return attr, wrapClientError(err, c, "Serial")
@@ -140,13 +142,69 @@ func (c *Device) Forward(addr string) (net.Conn, error) {
 		conn.Close()
 		return nil, wrapClientError(err, c, "forward")
 	}
-
 	if _, err = readStatusWithTimeout(conn, addr, c.CmdTimeoutShort); err != nil {
 		conn.Close()
 		return nil, wrapClientError(err, c, "forward")
 	}
 
 	return conn.(*wire.Conn), wrapClientError(err, c, "forward")
+}
+
+func (c *Device) DoForward(local, remote string, noRebind bool) (err error) {
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
+	if err != nil {
+		return wrapClientError(err, c, "forward")
+	}
+	defer conn.Close()
+
+	var command string
+	if noRebind {
+		command = fmt.Sprintf("host:forward:norebind:%s;%s", local, remote)
+	} else {
+		command = fmt.Sprintf("host:forward:%s;%s", local, remote)
+	}
+
+	if err = conn.SendMessage([]byte(command)); err != nil {
+		return wrapClientError(err, c, "forward")
+	}
+	if _, err := readStatusWithTimeout(conn, command, c.CmdTimeoutShort); err != nil {
+		return wrapClientError(err, c, "forward")
+	} else {
+		return nil
+	}
+}
+
+func (c *Device) DoListForward() (deviceForwardList []ForwardEntry, err error) {
+	// c.descriptor.serial 可能为空，因此从这里获取
+	serial, err := c.Serial()
+	if err != nil {
+		return nil, fmt.Errorf("forward-list get serial failed:%w", err)
+	}
+
+	resp, err := roundTripSingleResponse(c.server, "host:list-forward")
+	if err != nil {
+		return nil, err
+	}
+
+	list := parseForwardList(resp)
+	for i := range list {
+		if list[i].Serial == serial {
+			deviceForwardList = append(deviceForwardList, list[i])
+		}
+	}
+	return
+}
+
+func (c *Device) DoRemoveForward(local string) (err error) {
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
+	if err != nil {
+		return wrapClientError(err, c, "forward-remove")
+	}
+	defer conn.Close()
+
+	command := fmt.Sprintf("host:killforward:%s", local)
+	_, err = conn.RoundTripSingleResponse([]byte(command))
+	return wrapClientError(err, c, "forward-remove")
 }
 
 // Remount, from the official adb command’s docs:
