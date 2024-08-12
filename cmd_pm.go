@@ -41,7 +41,7 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 		args = append(args, "-3")
 	}
 
-	list, err := d.RunCommandToEnd(d.CmdTimeoutLong, "pm", args...)
+	list, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm", args...)
 	if err != nil {
 		return nil, fmt.Errorf("pm "+strings.Join(args, " ")+": %w", err)
 	}
@@ -62,7 +62,7 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 // shell:pm clear <package>
 // 00000000  53 75 63 63 65 73 73 0d  0a                       |Success..|
 func (d *Device) ClearPackageData(packageName string) (err error) {
-	resp, err := d.RunCommandToEnd(d.CmdTimeoutLong, "pm", "clear", packageName)
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm", "clear", packageName)
 	if err != nil {
 		return err // always tcp error
 	}
@@ -88,7 +88,7 @@ func (d *Device) ClearPackageData(packageName string) (err error) {
 // HWALP:/ $ pm uninstall non-existed-app
 // Failure [DELETE_FAILED_INTERNAL_ERROR]
 func (d *Device) UninstallPackage(packageName string) (err error) {
-	resp, err := d.RunCommandToEnd(d.CmdTimeoutLong, "pm", "uninstall", packageName)
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm", "uninstall", packageName)
 	if err != nil {
 		return err // always tcp error
 	}

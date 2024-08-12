@@ -84,7 +84,7 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 	return conn, wrapClientError(err, c, "RunCommand")
 }
 
-func (c *Device) RunCommandToEnd(timeout time.Duration, cmd string, args ...string) (resp []byte, err error) {
+func (c *Device) RunCommandTimeout(timeout time.Duration, cmd string, args ...string) (resp []byte, err error) {
 	conn, err := c.RunShellCommand(false, cmd, args...)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (c *Device) RunCommandToEnd(timeout time.Duration, cmd string, args ...stri
 
 // RunCommand default timeout is CommandTimeoutShortDefault which is 2 seconds, be careful
 func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
-	return c.RunCommandToEnd(c.CmdTimeoutShort, cmd, args...)
+	return c.RunCommandTimeout(c.CmdTimeoutShort, cmd, args...)
 }
 
 // RunCommandCtx wrap RunShellCommand with context
