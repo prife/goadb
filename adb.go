@@ -145,9 +145,10 @@ func (c *Adb) ListDevices() ([]*DeviceInfo, error) {
 // Connect connect to a device via TCP/IP
 // Corresponds to the command:
 //
-//	adb connect
-func (c *Adb) Connect(host string, port int) error {
-	_, err := roundTripSingleResponse(c.server, fmt.Sprintf("host:connect:%s:%d", host, port))
+//	adb connect ip:port
+func (c *Adb) Connect(addr string) error {
+	// connect may slow in internet, set 5 second timeout
+	_, err := roundTripSingleResponseTimeout(c.server, "host:connect:"+addr, time.Second*5)
 	if err != nil {
 		return fmt.Errorf("Connect: %w", err)
 	}

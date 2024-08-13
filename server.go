@@ -39,13 +39,17 @@ type server interface {
 }
 
 func roundTripSingleResponse(s server, req string) (resp []byte, err error) {
+	return roundTripSingleResponseTimeout(s, req, time.Second)
+}
+
+func roundTripSingleResponseTimeout(s server, req string, timeout time.Duration) (resp []byte, err error) {
 	conn, err := s.Dial()
 	if err != nil {
 		return
 	}
 	defer conn.Close()
 
-	if err = conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err = conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 		return
 	}
 	if resp, err = conn.RoundTripSingleResponse([]byte(req)); err != nil {
