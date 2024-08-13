@@ -88,3 +88,13 @@ func TestDevice_DoForward(t *testing.T) {
 	assert.Equal(t, list[0].Local, "tcp:5001")
 	assert.Equal(t, list[0].Remote, "tcp:6000")
 }
+
+func TestAdb_Disconnect(t *testing.T) {
+	err := adbclient.Disconnect("192.168.1.100:5000")
+	assert.Contains(t, err.Error(), "no such device '192.168.1.100:5000'")
+}
+
+func TestAdb_DisconnectAll(t *testing.T) {
+	err := adbclient.DisconnectAll()
+	assert.Nil(t, err)
+}

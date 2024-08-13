@@ -154,6 +154,22 @@ func (c *Adb) Connect(host string, port int) error {
 	return nil
 }
 
+func (c *Adb) DisconnectAll() error {
+	_, err := roundTripSingleResponse(c.server, "host:disconnect:")
+	if err != nil {
+		return fmt.Errorf("disconnect: %w", err)
+	}
+	return nil
+}
+
+func (c *Adb) Disconnect(addr string) error {
+	_, err := roundTripSingleResponse(c.server, "host:disconnect:"+addr)
+	if err != nil {
+		return fmt.Errorf("disconnect: %w", err)
+	}
+	return nil
+}
+
 func (c *Adb) ListForward() ([]ForwardEntry, error) {
 	resp, err := roundTripSingleResponse(c.server, "host:list-forward")
 	if err != nil {

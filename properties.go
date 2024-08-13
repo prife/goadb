@@ -82,7 +82,7 @@ func (d *Device) BootCompleted() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return string(booted) == "1", nil
+	return booted == "1", nil
 }
 
 // SetProperty adb shell setprop
