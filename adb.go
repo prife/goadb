@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -144,11 +145,61 @@ func (c *Adb) ListDevices() ([]*DeviceInfo, error) {
 // Connect connect to a device via TCP/IP
 // Corresponds to the command:
 //
-//	adb connect
-func (c *Adb) Connect(host string, port int) error {
-	_, err := roundTripSingleResponse(c.server, fmt.Sprintf("host:connect:%s:%d", host, port))
+//	adb connect ip:port
+func (c *Adb) Connect(addr string) error {
+	// connect may slow in internet, set 5 second timeout
+	_, err := roundTripSingleResponseTimeout(c.server, "host:connect:"+addr, time.Second*5)
 	if err != nil {
 		return fmt.Errorf("Connect: %w", err)
+	}
+	return nil
+}
+
+func (c *Adb) DisconnectAll() error {
+	_, err := roundTripSingleResponse(c.server, "host:disconnect:")
+	if err != nil {
+		return fmt.Errorf("disconnect: %w", err)
+	}
+	return nil
+}
+
+func (c *Adb) Disconnect(addr string) error {
+	_, err := roundTripSingleResponse(c.server, "host:disconnect:"+addr)
+	if err != nil {
+		return fmt.Errorf("disconnect: %w", err)
+	}
+	return nil
+}
+
+func (c *Adb) ListForward() ([]ForwardEntry, error) {
+	resp, err := roundTripSingleResponse(c.server, "host:list-forward")
+	if err != nil {
+		return nil, err
+	}
+	return parseForwardList(resp), nil
+}
+
+// RemoveAllForward
+// --->
+// 00000000  30 30 31 34 68 6f 73 74  3a 6b 69 6c 6c 66 6f 72  |0014host:killfor|
+// 00000010  77 61 72 64 2d 61 6c 6c                           |ward-all|
+// <---
+// 00000000  4f 4b 41 59 4f 4b 41 59                           |OKAYOKAY|
+func (c *Adb) RemoveAllForward() (err error) {
+	conn, err := c.server.Dial()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	// 这里没有使用 roundTripSingleResponse，因为它返回 OKAY之后，后面还跟 OKAY
+	req := "host:killforward-all"
+	if err = conn.SendMessage([]byte(req)); err != nil {
+		return err
+	}
+
+	if _, err = readStatusWithTimeout(conn, req, CommandTimeoutShortDefault); err != nil {
+		return fmt.Errorf("'%s' failed: %w", req, err)
 	}
 	return nil
 }
@@ -172,4 +223,25 @@ func featuresStrToMap(attr string) (features map[string]bool) {
 		features[f] = true
 	}
 	return
+}
+
+type ForwardEntry struct {
+	Serial string
+	Local  string
+	Remote string
+}
+
+func parseForwardList(resp []byte) []ForwardEntry {
+	lines := bytes.Split(resp, []byte("\n"))
+	deviceForward := make([]ForwardEntry, 0, len(lines))
+
+	for i := range lines {
+		line := bytes.TrimSpace(lines[i])
+		if len(line) == 0 {
+			continue
+		}
+		fields := bytes.Fields(line)
+		deviceForward = append(deviceForward, ForwardEntry{Serial: string(fields[0]), Local: string(fields[1]), Remote: string(fields[2])})
+	}
+	return deviceForward
 }

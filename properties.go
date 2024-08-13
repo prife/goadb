@@ -68,12 +68,12 @@ func (d *Device) GetProperties(filter PropertiesFilter) (properties AndroidPrope
 	return
 }
 
-func (d *Device) GetProperty(name string) (resp []byte, err error) {
-	resp, err = d.RunCommand("getprop", name)
+func (d *Device) GetProperty(name string) (value string, err error) {
+	resp, err := d.RunCommand("getprop", name)
 	if err != nil {
 		return
 	}
-	resp = bytes.TrimSpace(resp)
+	value = string(bytes.TrimSpace(resp))
 	return
 }
 
@@ -82,13 +82,20 @@ func (d *Device) BootCompleted() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return string(booted) == "1", nil
+	return booted == "1", nil
 }
 
 // SetProperty adb shell setprop
 func (d *Device) SetProperty(key, value string) (err error) {
 	resp, err := d.RunCommand("setprop", key, value)
-	_ = resp
+	if err != nil {
+		return fmt.Errorf("'setprop %s %s' failed: %w", key, value, err)
+	}
+
+	resp = bytes.TrimSpace(resp)
+	if len(resp) > 0 {
+		err = fmt.Errorf("'setprop %s %s' failed: %s", key, value, resp)
+	}
 	return
 }
 

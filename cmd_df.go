@@ -222,3 +222,18 @@ func (d *Device) DF() (list []DfEntry, err error) {
 	}
 	return
 }
+
+// 使用最大分区作为磁盘大小的近似
+func (d *Device) GetDiskSize() (sizeInBytes uint64, err error) {
+	list, err := d.DF()
+	if err != nil {
+		return
+	}
+
+	for _, l := range list {
+		if uint64(l.Size) > sizeInBytes {
+			sizeInBytes = uint64(l.Size)
+		}
+	}
+	return
+}

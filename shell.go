@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -83,8 +84,8 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 	return conn, wrapClientError(err, c, "RunCommand")
 }
 
-func (c *Device) RunCommandToEnd(v2 bool, timeout time.Duration, cmd string, args ...string) (resp []byte, err error) {
-	conn, err := c.RunShellCommand(v2, cmd, args...)
+func (c *Device) RunCommandTimeout(timeout time.Duration, cmd string, args ...string) (resp []byte, err error) {
+	conn, err := c.RunShellCommand(false, cmd, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,22 +104,16 @@ func (c *Device) RunCommandToEnd(v2 bool, timeout time.Duration, cmd string, arg
 	// fmt.Println(hex.Dump(resp))
 	// fmt.Println("----------------")
 	// fmt.Printf("%s", resp)
-	if v2 {
-		// trim prefix and suffix chars, see comments above
-		if len(resp) >= (5 + 6) {
-			resp = resp[5 : len(resp)-6]
-		}
-	}
 	return
 }
 
 // RunCommand default timeout is CommandTimeoutShortDefault which is 2 seconds, be careful
 func (c *Device) RunCommand(cmd string, args ...string) ([]byte, error) {
-	return c.RunCommandToEnd(false, c.CmdTimeoutShort, cmd, args...)
+	return c.RunCommandTimeout(c.CmdTimeoutShort, cmd, args...)
 }
 
 // RunCommandCtx wrap RunShellCommand with context
-func (c *Device) RunCommandCtx(ctx context.Context, log func(buf []byte), cmd string, args ...string) error {
+func (c *Device) RunCommandCtx(ctx context.Context, writer io.Writer, cmd string, args ...string) error {
 	conn, err := c.RunShellCommand(false, cmd, args...)
 	if err != nil {
 		return err
@@ -129,13 +124,13 @@ func (c *Device) RunCommandCtx(ctx context.Context, log func(buf []byte), cmd st
 	go func() {
 		for {
 			n, err := conn.Read(buf)
+			if writer != nil && n > 0 {
+				writer.Write(buf[:n])
+			}
 			if err != nil {
 				// fmt.Println("error: ", err)
 				close(ch)
 				return
-			}
-			if log != nil {
-				log((buf[:n]))
 			}
 		}
 	}()
@@ -146,4 +141,10 @@ func (c *Device) RunCommandCtx(ctx context.Context, log func(buf []byte), cmd st
 	case <-ch:
 		return io.EOF
 	}
+}
+
+func (c *Device) RunCommandOutputCtx(ctx context.Context, cmd string, args ...string) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	err := c.RunCommandCtx(ctx, buf, cmd, args...)
+	return buf.Bytes(), err
 }

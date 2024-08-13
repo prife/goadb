@@ -144,7 +144,7 @@ func (c *Device) Rm(list []string) error {
 	commands = append(commands, "-rf")
 	for _, l := range list {
 		if commandsLen+len(l) > (32768 - 7) { // len('rm -rf ') == 6
-			resp, err := c.RunCommand("rm", commands...)
+			resp, err := c.RunCommandTimeout(-1, "rm", commands...)
 			if err != nil {
 				return err
 			}
@@ -164,7 +164,7 @@ func (c *Device) Rm(list []string) error {
 	}
 
 	if commandsLen > 0 {
-		resp, err := c.RunCommand("rm", commands...)
+		resp, err := c.RunCommandTimeout(-1, "rm", commands...)
 		if err != nil {
 			return err
 		}
