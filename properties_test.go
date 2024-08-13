@@ -66,3 +66,17 @@ func TestDevice_GetProperites(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Println("booted:", booted)
 }
+
+func TestDevice_SetProperty(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(AnyDevice())
+	err := d.SetProperty(PropProductName, "hello")
+	assert.Contains(t, err.Error(), "Failed to set property")
+
+	// err = d.SetProperty("hello.test", "hello")
+	// assert.Nil(t, err)
+
+	// value, err := d.GetProperty("hello.test")
+	// assert.Nil(t, err)
+	// assert.Equal(t, value, "hello")
+}

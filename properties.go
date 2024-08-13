@@ -88,7 +88,14 @@ func (d *Device) BootCompleted() (bool, error) {
 // SetProperty adb shell setprop
 func (d *Device) SetProperty(key, value string) (err error) {
 	resp, err := d.RunCommand("setprop", key, value)
-	_ = resp
+	if err != nil {
+		return fmt.Errorf("'setprop %s %s' failed: %w", key, value, err)
+	}
+
+	resp = bytes.TrimSpace(resp)
+	if len(resp) > 0 {
+		err = fmt.Errorf("'setprop %s %s' failed: %s", key, value, resp)
+	}
 	return
 }
 
