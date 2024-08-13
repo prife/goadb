@@ -68,12 +68,12 @@ func (d *Device) GetProperties(filter PropertiesFilter) (properties AndroidPrope
 	return
 }
 
-func (d *Device) GetProperty(name string) (resp []byte, err error) {
-	resp, err = d.RunCommand("getprop", name)
+func (d *Device) GetProperty(name string) (value string, err error) {
+	resp, err := d.RunCommand("getprop", name)
 	if err != nil {
 		return
 	}
-	resp = bytes.TrimSpace(resp)
+	value = string(bytes.TrimSpace(resp))
 	return
 }
 

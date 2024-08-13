@@ -31,8 +31,7 @@ func (d *Device) GetDeviceName() (name string, err error) {
 	}
 
 	// final try
-	resp, err = d.GetProperty(PropProductName)
-	name = string(resp)
+	name, err = d.GetProperty(PropProductName)
 	return
 }
 
