@@ -1,6 +1,7 @@
 package adb_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -69,5 +70,12 @@ func TestDevice_UninstallPackage(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "DELETE_FAILED_INTERNAL_ERROR"))
 
 	err = d.UninstallPackage("com.tencent.wetestdemo")
+	assert.Nil(t, err)
+}
+
+func TestDevice_PmInstall(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(adb.AnyDevice())
+	err := d.PmInstall(context.TODO(), "/data/local/tmp/WeTestDemo.apk", true, true)
 	assert.Nil(t, err)
 }

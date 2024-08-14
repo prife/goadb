@@ -120,16 +120,22 @@ func (c *Device) RunCommandCtx(ctx context.Context, writer io.Writer, cmd string
 	}
 	defer conn.Close()
 	buf := make([]byte, wire.SyncMaxChunkSize)
-	ch := make(chan interface{})
+	ch := make(chan error, 2)
 	go func() {
 		for {
 			n, err := conn.Read(buf)
 			if writer != nil && n > 0 {
 				writer.Write(buf[:n])
 			}
+
+			// shell v1 协议无法确认 connection 结束的真正原因，实际测试效果如下：
+			// 1. 手机 adb 连接正常，程序正常结束，err返回 EOF
+			// 2. 手机 adb 连接正常，kill 掉正在执行的程序，err 也会返回 EOF
+			// 3. 如果进程执行中，断开 USB 线，err 还会返回 EOF
+			// 综上: 需要支持 v2 协议，才有可能区分上述三种情况。
 			if err != nil {
-				// fmt.Println("error: ", err)
-				close(ch)
+				// fmt.Println("err:", err)
+				ch <- io.EOF
 				return
 			}
 		}
@@ -138,8 +144,11 @@ func (c *Device) RunCommandCtx(ctx context.Context, writer io.Writer, cmd string
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-ch:
-		return io.EOF
+	case err := <-ch:
+		if err == io.EOF {
+			return nil
+		}
+		return err
 	}
 }
 
