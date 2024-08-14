@@ -68,6 +68,8 @@ func (d *Device) GetCurrentActivity() (app []Activity, err error) {
 	return
 }
 
+// LaunchAppByMonkey launch app by it's package name with monkey
+//
 // $ adb shell monkey -p com.android.settings 1
 // Android 5.1
 // Events injected: 1
@@ -88,11 +90,10 @@ func (d *Device) GetCurrentActivity() (app []Activity, err error) {
 // $ adb shell monkey -p com.android.settings1111 1
 // ...
 // ** No activities found to run, monkey aborted.
-
-// StartApp launch app by it's package name
-func (d *Device) StartApp(packageName string) (resp []byte, err error) {
+func (d *Device) LaunchAppByMonkey(packageName string) (resp []byte, err error) {
 	// https://stackoverflow.com/questions/4567904/how-to-start-an-application-using-android-adb-tools
-	resp, err = d.RunCommandTimeout(d.CmdTimeoutLong, "monkey", "-p", packageName, "1")
+	cmd := "monkey -p " + packageName + " 1"
+	resp, err = d.RunCommandTimeout(d.CmdTimeoutLong, cmd)
 	if err != nil {
 		return // tcp error
 	}
@@ -106,6 +107,26 @@ func (d *Device) StartApp(packageName string) (resp []byte, err error) {
 	}
 	err = errors.New("unrecognized error")
 	return
+}
+
+// Android 12
+// HWNOH:/ $ am start -n com.EpicLRT.ActionRPGSample/com.epicgames.ue4.SplashActivity
+// Starting: Intent { cmp=com.EpicLRT.ActionRPGSample/com.epicgames.ue4.SplashActivity }
+// HWNOH:/ $ am start -n com.EpicLRT.ActionRPGSample/com.epicgames.ue4.SplashActivity1
+// Starting: Intent { cmp=com.EpicLRT.ActionRPGSample/com.epicgames.ue4.SplashActivity1 }
+// Error type 3
+// Error: Activity class {com.EpicLRT.ActionRPGSample/com.epicgames.ue4.SplashActivity1} does not exist.
+func (d *Device) AmStart(pkgActivityName string) error {
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "am start -n "+pkgActivityName)
+	if err != nil {
+		return err // tcp error
+	}
+	// err maybe nil, check response to determine error
+	if bytes.Contains(resp, []byte("Error: ")) {
+		return errors.New(string(resp))
+	} else {
+		return nil
+	}
 }
 
 // ForceStopPackage force-stop app

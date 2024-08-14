@@ -30,7 +30,14 @@ func TestDevice_ForceStopApp(t *testing.T) {
 func TestDevice_StartApp(t *testing.T) {
 	assert.NotNil(t, adbclient)
 	d := adbclient.Device(adb.AnyDevice())
-	_, err := d.StartApp("com.android.settings")
+	_, err := d.LaunchAppByMonkey("com.android.settings")
+	assert.Nil(t, err)
+}
+
+func TestDevice_StartApp2(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(adb.AnyDevice())
+	_, err := d.LaunchAppByMonkey("com.EpicLRT.ActionRPGSample")
 	assert.Nil(t, err)
 }
 
