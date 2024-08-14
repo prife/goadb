@@ -2,7 +2,11 @@ package adb
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -336,4 +340,53 @@ func (d *Device) GetCpuInfo() (cpuInfo CpuInfo, err error) {
 	freq := float64(freqTotal/100000) / 10.0
 	cpuInfo.Frequency = freq
 	return
+}
+
+// Reboot the device
+func (d *Device) Reboot(ctx context.Context, waitToBootCompleted bool) error {
+	_, err := d.RunCommand("reboot")
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		// pass
+		// err is "read tcp 127.0.0.1:65357->127.0.0.1:5037: i/o timeout"
+	} else if err == io.EOF {
+		// pass
+	} else if err != nil {
+		return fmt.Errorf("reboot failed: %w", err)
+	}
+
+	// make sure adb disconnected
+	ctx1, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	for {
+		if state, _ := d.State(); state == StateInvalid || state == StateOffline {
+			break
+		}
+
+		select {
+		case <-ctx1.Done():
+			return fmt.Errorf("reboot check disconnected failed: %w", ctx1.Err())
+		case <-time.After(2 * time.Second):
+		}
+	}
+
+	if !waitToBootCompleted {
+		return nil
+	}
+
+	// wait to boot complete
+	ctx2, cancel := context.WithTimeout(ctx, time.Second*90)
+	defer cancel()
+	for {
+		if state, _ := d.State(); state == StateOnline {
+			if booted, _ := d.BootCompleted(); booted {
+				return nil
+			}
+		}
+
+		select {
+		case <-ctx2.Done():
+			return fmt.Errorf("reboot check booted failed: %w", ctx2.Err())
+		case <-time.After(2 * time.Second):
+		}
+	}
 }

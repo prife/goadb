@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -258,4 +259,22 @@ Hardware	: Hisilicon Kirin970
 	info, err := parseCpuInfo(output)
 	_ = info
 	_ = err
+}
+
+func TestDevice_Reboot(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(AnyDevice())
+	err := d.Reboot(context.TODO(), false)
+	assert.Nil(t, err)
+
+}
+
+func TestDevice_Reboot2(t *testing.T) {
+	lists, err := adbclient.ListDeviceSerials()
+	assert.Nil(t, err)
+	assert.Greater(t, len(lists), 0)
+
+	d2 := adbclient.Device(DeviceWithSerial(lists[0]))
+	err = d2.Reboot(context.TODO(), true)
+	assert.Nil(t, err)
 }

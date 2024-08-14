@@ -3,6 +3,7 @@ package adb
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/prife/goadb/wire"
@@ -124,4 +125,18 @@ func Test_featuresStrToMap(t *testing.T) {
 	// for k, _ := range features {
 	// 	fmt.Println(k)
 	// }
+}
+
+func TestDevice_State(t *testing.T) {
+	assert.NotNil(t, adbclient)
+	d := adbclient.Device(DeviceWithSerial("not-existed"))
+	state, err := d.State()
+	assert.Equal(t, state, StateInvalid)
+	assert.ErrorIs(t, err, wire.ErrDeviceNotFound)
+
+	d2 := adbclient.Device(AnyDevice())
+	state, err = d2.State()
+	fmt.Printf("state:%v, err=%v", state, err)
+	assert.Equal(t, state, StateInvalid)
+	assert.Contains(t, err.Error(), "no devices/emulators found")
 }
