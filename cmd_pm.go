@@ -12,7 +12,7 @@ var (
 	ErrSecurityException = errors.New("JavaSecurityException")
 )
 
-// ListPackages adb shell pm
+// PmListPackages adb shell pm
 // list packages [-f] [-d] [-e] [-s] [-3] [-i] [-l] [-u] [-U]
 //
 //		[--show-versioncode] [--apex-only] [--factory-only]
@@ -35,7 +35,7 @@ var (
 //		--uid UID: filter to only show packages with the given UID
 //		--user USER_ID: only list packages belonging to the given user
 //		--match-libraries: include packages that declare static shared and SDK libraries
-func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
+func (d *Device) PmListPackages(thirdParty bool) (names []string, err error) {
 	args := []string{"list", "packages"}
 	if thirdParty {
 		args = append(args, "-3")
@@ -57,12 +57,12 @@ func (d *Device) ListPackages(thirdParty bool) (names []string, err error) {
 	return
 }
 
-// ClearPackageData clear app
+// PmClear clear app
 // Android 5.1
 // shell:pm clear <package>
 // 00000000  53 75 63 63 65 73 73 0d  0a                       |Success..|
-func (d *Device) ClearPackageData(packageName string) (err error) {
-	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm", "clear", packageName)
+func (d *Device) PmClear(packageName string) (err error) {
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm clear "+packageName)
 	if err != nil {
 		return err // always tcp error
 	}
@@ -82,13 +82,13 @@ func (d *Device) ClearPackageData(packageName string) (err error) {
 	return
 }
 
-// UninstallPackage uninstall package
+// PmUninstall uninstall package
 // HWALP:/ $ pm uninstall com.tencent.wetest.demo
 // Success
 // HWALP:/ $ pm uninstall non-existed-app
 // Failure [DELETE_FAILED_INTERNAL_ERROR]
-func (d *Device) UninstallPackage(packageName string) (err error) {
-	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm", "uninstall", packageName)
+func (d *Device) PmUninstall(packageName string) (err error) {
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "pm uninstall "+packageName)
 	if err != nil {
 		return err // always tcp error
 	}

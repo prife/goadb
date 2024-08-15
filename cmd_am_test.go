@@ -23,7 +23,7 @@ func TestDevice_ForceStopApp(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	list, err := d.GetCurrentActivity()
 	assert.Nil(t, err)
-	err = d.ForceStopApp(list[0].Package)
+	err = d.AmForceStop(list[0].Package)
 	assert.Nil(t, err)
 }
 

@@ -14,10 +14,10 @@ var (
 	adbclient, _ = adb.NewWithConfig(adb.ServerConfig{})
 )
 
-func TestListPackages(t *testing.T) {
+func TestDevice_PmListPackages(t *testing.T) {
 	assert.NotNil(t, adbclient)
 	d := adbclient.Device(adb.AnyDevice())
-	list, err := d.ListPackages(true)
+	list, err := d.PmListPackages(true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,10 +44,10 @@ java.lang.SecurityException: PID 6593 does not have permission android.permissio
 	at android.os.Binder.execTransactInternal(Binder.java:1392)
 	at android.os.Binder.execTransact(Binder.java:1299)
 */
-func TestDevice_ClearPackageData(t *testing.T) {
+func TestDevice_PmClear(t *testing.T) {
 	assert.NotNil(t, adbclient)
 	d := adbclient.Device(adb.AnyDevice())
-	list, err := d.ListPackages(true)
+	list, err := d.PmListPackages(true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,20 +56,20 @@ func TestDevice_ClearPackageData(t *testing.T) {
 	packageName := list[0]
 	fmt.Println("pm clear", packageName)
 
-	err = d.ClearPackageData(list[0])
+	err = d.PmClear(list[0])
 	if err != nil {
 		assert.ErrorIs(t, err, adb.ErrSecurityException)
 		fmt.Println(err)
 	}
 }
 
-func TestDevice_UninstallPackage(t *testing.T) {
+func TestDevice_PmUninstall(t *testing.T) {
 	assert.NotNil(t, adbclient)
 	d := adbclient.Device(adb.AnyDevice())
-	err := d.UninstallPackage("non-existed-app")
+	err := d.PmUninstall("non-existed-app")
 	assert.True(t, strings.Contains(err.Error(), "DELETE_FAILED_INTERNAL_ERROR"))
 
-	err = d.UninstallPackage("com.tencent.wetestdemo")
+	err = d.PmUninstall("com.tencent.wetestdemo")
 	assert.Nil(t, err)
 }
 

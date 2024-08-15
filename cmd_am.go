@@ -53,7 +53,7 @@ func UnpackActivity(resp []byte) (l []Activity) {
 // references:
 // https://stackoverflow.com/questions/13193592/getting-the-name-of-the-current-activity-via-adb
 func (d *Device) GetCurrentActivity() (app []Activity, err error) {
-	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "dumpsys", "activity", "activities", "|", "grep", "ResumedActivity")
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "dumpsys activity activities | grep ResumedActivity")
 	if err != nil {
 		return // tcp error
 	}
@@ -131,8 +131,8 @@ func (d *Device) AmStart(pkgActivityName string) error {
 
 // ForceStopPackage force-stop app
 // Android 14: don't need permission
-func (d *Device) ForceStopApp(packageName string) (err error) {
-	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "am", "force-stop", packageName)
+func (d *Device) AmForceStop(packageName string) (err error) {
+	resp, err := d.RunCommandTimeout(d.CmdTimeoutLong, "am force-stop "+packageName)
 	if err != nil {
 		return err // tcp error
 	}
