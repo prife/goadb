@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +33,17 @@ func TestDeviceFeatures(t *testing.T) {
 	fmt.Println("host features: ", features)
 	d := adbclient.Device(adb.AnyDevice())
 	fmt.Println(d.DeviceFeatures())
+}
+
+func TestPath(t *testing.T) {
+	winPath := "E:\\Documents\\WXWork\\Cache\\File\\test.apk"
+	basePath := path.Base(winPath)
+	assert.Equal(t, basePath, winPath)
+
+	if runtime.GOOS == "windows" {
+		basePath2 := filepath.Base(winPath)
+		assert.Equal(t, basePath2, "test.apk")
+	}
 }
 
 func TestForwardPort(t *testing.T) {
