@@ -134,6 +134,6 @@ func main() {
 	case "tcp":
 		panic(unix_to_tcp("/var/run/usbmuxd", "127.0.0.1:27015"))
 	case "tcp2tcp":
-		panic(tcp_to_tcp("127.0.0.1:6000", "127.0.0.1:5037"))
+		panic(tcp_to_tcp("127.0.0.1:8711", "127.0.0.1:8710"))
 	}
 }

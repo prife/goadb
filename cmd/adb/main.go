@@ -51,7 +51,6 @@ var (
 	pullLocalArg = pullCommand.Arg("local",
 		"Path of destination file. If -, will write to stdout.").
 		String()
-
 	pushCommand = kingpin.Command("push",
 		"Push a file to the device.")
 	pushProgressFlag = pushCommand.Flag("progress",
@@ -63,6 +62,16 @@ var (
 		Required().
 		String()
 	pushRemoteArg = pushCommand.Arg("remote",
+		"Path of destination file on device.").
+		Required().
+		String()
+	pushCommand2 = kingpin.Command("push2",
+		"Push to the device.")
+	pushLocalArg2 = pushCommand2.Arg("local",
+		"Path of source file. If -, will read from stdin.").
+		Required().
+		String()
+	pushRemoteArg2 = pushCommand2.Arg("remote",
 		"Path of destination file on device.").
 		Required().
 		String()
@@ -91,6 +100,8 @@ func main() {
 		exitCode = pull(*pullProgressFlag, *pullRemoteArg, *pullLocalArg, parseDevice())
 	case "push":
 		exitCode = push(*pushProgressFlag, *pushLocalArg, *pushRemoteArg, parseDevice())
+	case "push2":
+		exitCode = push2(parseDevice(), *pushLocalArg2, *pushRemoteArg2)
 	}
 
 	os.Exit(exitCode)
@@ -320,4 +331,20 @@ func copyWithProgressAndStats(dst io.Writer, src io.Reader, size int, showProgre
 	fmt.Fprintf(os.Stderr, "%d B/s (%d bytes in %s)\n", rate, copied, duration)
 
 	return nil
+}
+
+func push2(descriptor adb.DeviceDescriptor, localPath, remotePath string) int {
+	device := client.Device(descriptor)
+	err := device.PushDir(localPath, remotePath, true, func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error) {
+		if err != nil {
+			fmt.Printf("[%d/%d] pushing %s, %.2f%%, err:%s\n", sentFiles, totalFiles, current, percent, err.Error())
+		} else {
+			fmt.Printf("[%d/%d] pushing %s, %.2f%%, %.02f MB/s\n", sentFiles, totalFiles, current, percent, speed)
+		}
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "push failed:%v\n", err)
+		return 1
+	}
+	return 0
 }
