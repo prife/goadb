@@ -520,7 +520,18 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 			percent := 0
 			err = s.PushFile(path, target, func(n uint64) {
 				sentSize = sentSize + float64(n)
-				percent = int(float64(sentSize) / float64(totalSize) * 100)
+
+				// reduce handler call back
+				percent2 := int(float64(sentSize) / float64(totalSize) * 100)
+				if percent2 == 100 {
+					// pass
+				} else if totalSize < 1024*1024*10 && percent2 < 100 {
+					return
+				} else if (percent2 - percent) < 5 {
+					return
+				}
+				percent = percent2
+
 				// invoke callback
 				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
 				if speedMBPerSecond == math.Inf(+1) {
