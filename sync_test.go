@@ -357,3 +357,39 @@ func TestFileService_PullFile(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPercentPrint(t *testing.T) {
+	totalSize := 512 * 1024 * 1024
+	sent := 0
+	i := 0
+
+	percent := 0
+	for {
+		if (sent + 64*1024) < totalSize {
+			sent += 64 * 1024
+		} else {
+			sent = totalSize
+		}
+
+		percent2 := int(float64(sent) / float64(totalSize) * 100)
+		// 过滤器，减少打印次数
+		if percent2 == 100 {
+			// pass
+		} else if totalSize < 1024*1024 && percent2 < 100 {
+			continue
+		} else if (percent2 - percent) < 11 {
+			continue
+		}
+		i++
+		percent = percent2
+		fmt.Printf("[%3d] percent:%d\n", i, percent)
+
+		if sent == 0 {
+			break
+		}
+
+		if percent == 100 {
+			break
+		}
+	}
+}

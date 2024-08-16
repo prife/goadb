@@ -71,6 +71,7 @@ func (c *Device) RunShellCommand(v2 bool, cmd string, args ...string) (fn net.Co
 	// Shell responses are special, they don't include a length header.
 	// We read until the stream is closed.
 	// So, we can't use conn.RoundTripSingleResponse.
+	// fmt.Println("run command: ", req)
 	if err = conn.SendMessage([]byte(req)); err != nil {
 		conn.Close()
 		return nil, wrapClientError(err, c, "RunCommand")

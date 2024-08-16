@@ -9,7 +9,6 @@ import (
 	"math"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
 	"time"
 )
@@ -490,7 +489,7 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 	localDir = trimSuffixSlash(localDir)
 
 	if withSrcDir {
-		remotePath = remotePath + "/" + path.Base(localDir)
+		remotePath = remotePath + "/" + filepath.Base(localDir)
 	}
 
 	var sentFiles uint64
@@ -515,30 +514,29 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 			sentFiles++
 			relativePath, _ := filepath.Rel(localDir, path)
 			target := remotePath + "/" + relativePath
-			totalSize := float64(finfo.Size())
+			totalSize := finfo.Size()
 			sentSize := float64(0)
 			startTime := time.Now()
-			percent := float64(0)
+			percent := 0
 			err = s.PushFile(path, target, func(n uint64) {
 				sentSize = sentSize + float64(n)
-				percent = float64(sentSize) / float64(totalSize) * 100
+				percent = int(float64(sentSize) / float64(totalSize) * 100)
+				// invoke callback
 				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
-				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
 				if speedMBPerSecond == math.Inf(+1) {
 					if handler != nil {
-						handler(totalFiles, sentFiles, target, percent, 100, nil) // as 100MB/s
+						handler(totalFiles, sentFiles, target, float64(percent), 100, nil) // as 100MB/s
 					}
-
 				} else {
 					if handler != nil {
-						handler(totalFiles, sentFiles, target, percent, speedMBPerSecond, nil)
+						handler(totalFiles, sentFiles, target, float64(percent), speedMBPerSecond, nil)
 					}
-
 				}
+				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
 			})
 			if err != nil {
 				if handler != nil {
-					handler(totalFiles, sentFiles, target, percent, 0, err)
+					handler(totalFiles, sentFiles, target, float64(percent), 0, err)
 				}
 			}
 			return nil

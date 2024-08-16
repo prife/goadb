@@ -100,14 +100,17 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 		commands = append(commands, "-p")
 	}
 	for _, l := range list {
-		if commandsLen+len(l) > 32768 {
+		// adb 这里的长度是32768，但是由于wire/conn.go 中判断最大长度为 MaxPayloadV1Length 4096
+		// 因此这里使用 4000
+		if commandsLen+len(l) > 4000 {
 			resp, err := c.RunCommand("mkdir", commands...)
 			if err != nil {
 				return err
 			}
 
 			if len(resp) > 0 {
-				errs = filterFileExistedError(resp)
+				// fmt.Println("resp:", string(resp))
+				errs = append(errs, filterFileExistedError(resp)...)
 			}
 			commands = make([]string, 0)
 			if withParent {
@@ -126,8 +129,7 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 			return err
 		}
 		if len(resp) > 0 {
-			errs2 := filterFileExistedError(resp)
-			errs = append(errs, errs2...)
+			errs = append(errs, filterFileExistedError(resp)...)
 		}
 	}
 	return errors.Join(errs...)
@@ -219,14 +221,27 @@ func (c *Device) PushFile(localPath, remotePath string, handler func(totalSize, 
 	return err
 }
 
-// Push support push file or dir
+// PushDir support push dir
 // push 文件夹:
 // adb push src-dir dest-dir具有两种行为，与cp命令效果一致
 // 1.如果'dest-dir'路径不存在，会创建'dest-dir'，其内容与`src-dir`完全一致
 // 2.如果'dest-dir'路径存在，会创建'dest-dir/src-dir'，其内容与`src-dir`完全一致
 //
-// 本函数只支持情况2，既永远会在手机上创建src-dir
+// 本函数行为如下
+// 当 withSrcDir 为 true，永远会在手机上创建src-dir
+// 当 withSrcDir 为 false，则仅会 src-dir 的子文件/目录推送到目标文件夹下
 func (c *Device) PushDir(local, remote string, withSrcDir bool, handler wire.SyncHandler) (err error) {
+	local, err = filepath.Abs(local)
+	if err != nil {
+		return fmt.Errorf("pushd: get abs path of %s failed: %w", local, err)
+	}
+	var baseName string
+	if withSrcDir {
+		// use filepath.Base, not path.Base
+		// https://stackoverflow.com/questions/48050724/how-to-get-correct-file-base-name-on-windows-using-golang
+		baseName = filepath.Base(local)
+	}
+
 	linfo, err := os.Lstat(local)
 	if err != nil {
 		return err
@@ -242,14 +257,23 @@ func (c *Device) PushDir(local, remote string, withSrcDir bool, handler wire.Syn
 		return
 	}
 	remoteSubDirs := make([]string, len(subdirs))
-	for i, d := range subdirs {
-		remoteSubDirs[i] = remote + "/" + d
+	if baseName != "" {
+		for i, d := range subdirs {
+			remoteSubDirs[i] = remote + "/" + baseName + "/" + d
+		}
+	} else {
+		for i, d := range subdirs {
+			remoteSubDirs[i] = remote + "/" + d
+		}
 	}
-	err = c.Mkdirs(remoteSubDirs)
+	err = c.MkdirsWithParent(remoteSubDirs, true)
 	if err != nil {
-		// don't return, just log error
-		fmt.Printf("mkdir failed: %s\n", err.Error())
-		return err
+		// 当创建很多文件夹时(比如推送游戏资源包到手机中)，可能会返回一个超长的错误，截断处理
+		errStr := err.Error()
+		if len(errStr) > 1024 {
+			errStr = errStr[:1024]
+		}
+		return fmt.Errorf("mkdirs failed: %s", errStr)
 	}
 
 	// push files
