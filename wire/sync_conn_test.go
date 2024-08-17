@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -105,4 +106,9 @@ func TestSyncReadBytes(t *testing.T) {
 	buf, err := s.ReadBytes(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", string(buf))
+}
+
+func TestMath(t *testing.T) {
+	a := int(math.Ceil(0))
+	assert.Equal(t, a, 0)
 }

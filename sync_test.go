@@ -200,7 +200,7 @@ func TestDeviceOpenDirReader_NonExisted(t *testing.T) {
 	fmt.Println(dr, err)
 }
 
-func TestFileService_PushFile_LargeFile(t *testing.T) {
+func TestFileService_PushFileSimple_LargeFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	fs, err := d.NewSyncConn()
 	if err != nil {
@@ -253,7 +253,7 @@ func TestDevice_PushFile(t *testing.T) {
 
 	// push to dir
 	err := d.PushFile(path.Join(pwd, "sync.go"), "/sdcard/",
-		func(totalSize, sentSize int64, percent, speedMBPerSecond float64) {
+		func(totalSize, sentSize uint64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totalSize, percent, speedMBPerSecond)
 		})
 	if err != nil {
@@ -262,7 +262,7 @@ func TestDevice_PushFile(t *testing.T) {
 
 	// push to file
 	err = d.PushFile(testZip, "/sdcard/test.zip",
-		func(totalSize, sentSize int64, percent, speedMBPerSecond float64) {
+		func(totalSize, sentSize uint64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totalSize, percent, speedMBPerSecond)
 		})
 	if err != nil {

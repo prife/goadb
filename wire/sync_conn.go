@@ -435,7 +435,6 @@ func (s *SyncConn) PushFile(localPath, remotePath string, handler func(n uint64)
 			maxWriteSize = 1024 * 1024
 		}
 	*/
-
 	chunk := make([]byte, maxWriteSize)
 	for {
 		n, err := localFile.Read(chunk)
@@ -455,6 +454,7 @@ func (s *SyncConn) PushFile(localPath, remotePath string, handler func(n uint64)
 	}
 }
 
+type SyncFileHandler func(totalSize, sentSize uint64, percent, speedMBPerSecond float64)
 type SyncHandler func(totalFiles, sentFiles uint64, current string, percent, speed float64, err error)
 
 // PushDir push dir to android
@@ -519,8 +519,11 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 			startTime := time.Now()
 			percent := 0
 			err = s.PushFile(path, target, func(n uint64) {
-				sentSize = sentSize + float64(n)
+				if handler == nil {
+					return
+				}
 
+				sentSize = sentSize + float64(n)
 				// reduce handler call back
 				percent2 := int(float64(sentSize) / float64(totalSize) * 100)
 				if percent2 == 100 {
@@ -535,14 +538,9 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 				// invoke callback
 				speedMBPerSecond := sentSize * float64(time.Second) / 1024 / 1024 / float64(time.Since(startTime))
 				if speedMBPerSecond == math.Inf(+1) {
-					if handler != nil {
-						handler(totalFiles, sentFiles, target, float64(percent), 100, nil) // as 100MB/s
-					}
-				} else {
-					if handler != nil {
-						handler(totalFiles, sentFiles, target, float64(percent), speedMBPerSecond, nil)
-					}
+					speedMBPerSecond = 100 // as 100MB/s
 				}
+				handler(totalFiles, sentFiles, target, float64(percent), speedMBPerSecond, nil)
 				// fmt.Printf("push %.02f%% %d Bytes, %.02f MB/s\n", percent, uint64(sentSize), speedKBPerSecond)
 			})
 			if err != nil {
