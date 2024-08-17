@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +33,17 @@ func TestDeviceFeatures(t *testing.T) {
 	fmt.Println("host features: ", features)
 	d := adbclient.Device(adb.AnyDevice())
 	fmt.Println(d.DeviceFeatures())
+}
+
+func TestPath(t *testing.T) {
+	winPath := "E:\\Documents\\WXWork\\Cache\\File\\test.apk"
+	basePath := path.Base(winPath)
+	assert.Equal(t, basePath, winPath)
+
+	if runtime.GOOS == "windows" {
+		basePath2 := filepath.Base(winPath)
+		assert.Equal(t, basePath2, "test.apk")
+	}
 }
 
 func TestForwardPort(t *testing.T) {
@@ -187,7 +200,7 @@ func TestDeviceOpenDirReader_NonExisted(t *testing.T) {
 	fmt.Println(dr, err)
 }
 
-func TestFileService_PushFile_LargeFile(t *testing.T) {
+func TestFileService_PushFileSimple_LargeFile(t *testing.T) {
 	d := adbclient.Device(adb.AnyDevice())
 	fs, err := d.NewSyncConn()
 	if err != nil {
@@ -240,7 +253,7 @@ func TestDevice_PushFile(t *testing.T) {
 
 	// push to dir
 	err := d.PushFile(path.Join(pwd, "sync.go"), "/sdcard/",
-		func(totalSize, sentSize int64, percent, speedMBPerSecond float64) {
+		func(totalSize, sentSize uint64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totalSize, percent, speedMBPerSecond)
 		})
 	if err != nil {
@@ -249,7 +262,7 @@ func TestDevice_PushFile(t *testing.T) {
 
 	// push to file
 	err = d.PushFile(testZip, "/sdcard/test.zip",
-		func(totalSize, sentSize int64, percent, speedMBPerSecond float64) {
+		func(totalSize, sentSize uint64, percent, speedMBPerSecond float64) {
 			fmt.Printf("%d/%d bytes, %.02f%%, %.02f MB/s\n", sentSize, totalSize, percent, speedMBPerSecond)
 		})
 	if err != nil {
@@ -342,5 +355,41 @@ func TestFileService_PullFile(t *testing.T) {
 		})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPercentPrint(t *testing.T) {
+	totalSize := 512 * 1024 * 1024
+	sent := 0
+	i := 0
+
+	percent := 0
+	for {
+		if (sent + 64*1024) < totalSize {
+			sent += 64 * 1024
+		} else {
+			sent = totalSize
+		}
+
+		percent2 := int(float64(sent) / float64(totalSize) * 100)
+		// 过滤器，减少打印次数
+		if percent2 == 100 {
+			// pass
+		} else if totalSize < 1024*1024 && percent2 < 100 {
+			continue
+		} else if (percent2 - percent) < 11 {
+			continue
+		}
+		i++
+		percent = percent2
+		fmt.Printf("[%3d] percent:%d\n", i, percent)
+
+		if sent == 0 {
+			break
+		}
+
+		if percent == 100 {
+			break
+		}
 	}
 }
