@@ -2,6 +2,7 @@ package adb
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -103,7 +104,7 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 		// adb 这里的长度是32768，但是由于wire/conn.go 中判断最大长度为 MaxPayloadV1Length 4096
 		// 因此这里使用 4000
 		if commandsLen+len(l) > 4000 {
-			resp, err := c.RunCommand("mkdir", commands...)
+			resp, err := c.RunCommandTimeout(time.Second*15, "mkdir", commands...)
 			if err != nil {
 				return err
 			}
@@ -124,7 +125,7 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 	}
 
 	if commandsLen > 0 {
-		resp, err := c.RunCommand("mkdir", commands...)
+		resp, err := c.RunCommandTimeout(time.Second*15, "mkdir", commands...)
 		if err != nil {
 			return err
 		}
@@ -146,7 +147,7 @@ func (c *Device) Rm(list []string) error {
 	commands = append(commands, "-rf")
 	for _, l := range list {
 		if commandsLen+len(l) > (32768 - 7) { // len('rm -rf ') == 6
-			resp, err := c.RunCommandTimeout(-1, "rm", commands...)
+			resp, err := c.RunCommandTimeout(time.Second*15, "rm", commands...)
 			if err != nil {
 				return err
 			}
@@ -166,7 +167,7 @@ func (c *Device) Rm(list []string) error {
 	}
 
 	if commandsLen > 0 {
-		resp, err := c.RunCommandTimeout(-1, "rm", commands...)
+		resp, err := c.RunCommandTimeout(time.Second*15, "rm", commands...)
 		if err != nil {
 			return err
 		}
@@ -178,6 +179,10 @@ func (c *Device) Rm(list []string) error {
 }
 
 func (c *Device) PushFile(localPath, remotePath string, handler wire.SyncFileHandler) error {
+	return c.PushFileCtx(context.Background(), localPath, remotePath, handler)
+}
+
+func (c *Device) PushFileCtx(ctx context.Context, localPath, remotePath string, handler wire.SyncFileHandler) error {
 	linfo, err := os.Lstat(localPath)
 	if err != nil {
 		return err
@@ -220,8 +225,18 @@ func (c *Device) PushFile(localPath, remotePath string, handler wire.SyncFileHan
 		}
 	}
 
-	err = fconn.PushFile(localPath, remotePath, syncHandler)
-	return err
+	ch := make(chan error, 2)
+	go func() {
+		err := fconn.PushFile(localPath, remotePath, syncHandler)
+		ch <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("push failed by ctx done: %w", ctx.Err())
+	case err := <-ch:
+		return fmt.Errorf("push failed: %w", err)
+	}
 }
 
 // PushDir support push dir
@@ -234,6 +249,39 @@ func (c *Device) PushFile(localPath, remotePath string, handler wire.SyncFileHan
 // 当 withSrcDir 为 true，永远会在手机上创建src-dir
 // 当 withSrcDir 为 false，则仅会 src-dir 的子文件/目录推送到目标文件夹下
 func (c *Device) PushDir(local, remote string, withSrcDir bool, handler wire.SyncHandler) (err error) {
+	return c.PushDirCtx(context.Background(), local, remote, withSrcDir, handler)
+}
+
+func (c *Device) PushDirCtx(ctx context.Context, local, remote string, withSrcDir bool, handler wire.SyncHandler) (err error) {
+	// Android 12 之后，push 可能遇到文件夹权限问题，解决办法
+	// 1. 先在手机上创建所有文件夹，如果失败则直接返回错误
+	// 2. 再推送文件
+	if err := MakeDirs(c, local, remote, withSrcDir); err != nil {
+		return err
+	}
+
+	// push files
+	fconn, err := c.NewSyncConn()
+	if err != nil {
+		return err
+	}
+	defer fconn.Close()
+
+	ch := make(chan error, 2)
+	go func() {
+		err := fconn.PushDir(withSrcDir, local, remote, handler)
+		ch <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("push failed by ctx done: %w", ctx.Err())
+	case err := <-ch:
+		return fmt.Errorf("push failed: %w", err)
+	}
+}
+
+func MakeDirs(c *Device, local string, remote string, withSrcDir bool) (err error) {
 	local, err = filepath.Abs(local)
 	if err != nil {
 		return fmt.Errorf("pushd: get abs path of %s failed: %w", local, err)
@@ -278,12 +326,5 @@ func (c *Device) PushDir(local, remote string, withSrcDir bool, handler wire.Syn
 		}
 		return fmt.Errorf("mkdirs failed: %s", errStr)
 	}
-
-	// push files
-	fconn, err := c.NewSyncConn()
-	if err != nil {
-		return err
-	}
-	defer fconn.Close()
-	return fconn.PushDir(withSrcDir, local, remote, handler)
+	return nil
 }
