@@ -239,7 +239,10 @@ func (c *Device) PushFileCtx(ctx context.Context, localPath, remotePath string, 
 	case <-ctx.Done():
 		return fmt.Errorf("push failed by ctx done: %w", ctx.Err())
 	case err := <-ch:
-		return fmt.Errorf("push failed: %w", err)
+		if err != nil {
+			return fmt.Errorf("push failed: %w", err)
+		}
+		return nil
 	}
 }
 
