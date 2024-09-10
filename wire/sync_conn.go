@@ -3,6 +3,7 @@ package wire
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -493,6 +494,8 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 	}
 
 	var sentFiles uint64
+
+	var errs []error
 	err = filepath.WalkDir(localDir,
 		func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -547,9 +550,13 @@ func (s *SyncConn) PushDir(withSrcDir bool, localDir, remotePath string, handler
 				if handler != nil {
 					handler(totalFiles, sentFiles, target, float64(percent), 0, err)
 				}
+				errs = append(errs, err)
 			}
 			return nil
 		})
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
 	return
 }
 
