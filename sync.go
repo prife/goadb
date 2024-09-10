@@ -133,7 +133,11 @@ func (c *Device) MkdirsWithParent(list []string, withParent bool) error {
 			errs = append(errs, filterFileExistedError(resp)...)
 		}
 	}
-	return errors.Join(errs...)
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 // Rm run `adb shell rm -rf xx xx`
@@ -277,7 +281,10 @@ func (c *Device) PushDirCtx(ctx context.Context, local, remote string, withSrcDi
 	case <-ctx.Done():
 		return fmt.Errorf("push failed by ctx done: %w", ctx.Err())
 	case err := <-ch:
-		return fmt.Errorf("push failed: %w", err)
+		if err != nil {
+			return fmt.Errorf("push failed: %w", err)
+		}
+		return nil
 	}
 }
 
@@ -307,12 +314,15 @@ func MakeDirs(c *Device, local string, remote string, withSrcDir bool) (err erro
 	if err != nil {
 		return
 	}
-	remoteSubDirs := make([]string, len(subdirs))
+	var remoteSubDirs []string
 	if baseName != "" {
+		remoteSubDirs = make([]string, 1+len(subdirs))
+		remoteSubDirs[0] = remote + "/" + baseName
 		for i, d := range subdirs {
-			remoteSubDirs[i] = remote + "/" + baseName + "/" + d
+			remoteSubDirs[i+1] = remote + "/" + baseName + "/" + d
 		}
 	} else {
+		remoteSubDirs = make([]string, len(subdirs))
 		for i, d := range subdirs {
 			remoteSubDirs[i] = remote + "/" + d
 		}
