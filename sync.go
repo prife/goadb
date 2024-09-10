@@ -317,17 +317,16 @@ func MakeDirs(c *Device, local string, remote string, withSrcDir bool) (err erro
 	if err != nil {
 		return
 	}
-	var remoteSubDirs []string
+	remoteSubDirs := make([]string, 1+len(subdirs))
 	if baseName != "" {
-		remoteSubDirs = make([]string, 1+len(subdirs))
 		remoteSubDirs[0] = remote + "/" + baseName
 		for i, d := range subdirs {
 			remoteSubDirs[i+1] = remote + "/" + baseName + "/" + d
 		}
 	} else {
-		remoteSubDirs = make([]string, len(subdirs))
+		remoteSubDirs[0] = remote
 		for i, d := range subdirs {
-			remoteSubDirs[i] = remote + "/" + d
+			remoteSubDirs[i+1] = remote + "/" + d
 		}
 	}
 	err = c.MkdirsWithParent(remoteSubDirs, true)
