@@ -76,6 +76,6 @@ func TestDevice_PmUninstall(t *testing.T) {
 func TestDevice_PmInstall(t *testing.T) {
 	assert.NotNil(t, adbclient)
 	d := adbclient.Device(adb.AnyDevice())
-	err := d.PmInstall(context.TODO(), "/data/local/tmp/WeTestDemo.apk", true, true)
+	err := d.PmInstall(context.TODO(), "/data/local/tmp/WeTestDemo.apk", true, true, true)
 	assert.Nil(t, err)
 }

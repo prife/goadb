@@ -132,13 +132,17 @@ func (d *Device) PmUninstall(packageName string) (err error) {
 // 	at android.os.Binder.execTransact(Binder.java:1156)
 // 255|HWNOH:/sdcard $
 
-func (d *Device) PmInstall(ctx context.Context, apkPath string, reinstall bool, grantPermission bool) error {
+func (d *Device) PmInstall(ctx context.Context, apkPath string, reinstall bool, grantPermission bool,
+	allowDowngrade bool) error {
 	var args string
 	if reinstall {
 		args += "-r "
 	}
 	if grantPermission {
 		args += "-g "
+	}
+	if allowDowngrade {
+		args += "-d "
 	}
 
 	resp, err := d.RunCommandOutputCtx(ctx, "pm install "+args+apkPath)
