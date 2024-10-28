@@ -11,7 +11,7 @@ func checkNameValid(name string) bool {
 // see: https://stackoverflow.com/questions/16704597/how-do-you-get-the-user-defined-device-name-in-android
 func (d *Device) GetDeviceName() (name string, err error) {
 	// fist try
-	resp, err := d.RunCommand("settings get secure bluetooth_name")
+	resp, err := d.RunCommand("settings get global device_name")
 	if err != nil {
 		return
 	}
@@ -21,7 +21,7 @@ func (d *Device) GetDeviceName() (name string, err error) {
 	}
 
 	// try again
-	resp, err = d.RunCommand("settings get global device_name")
+	resp, err = d.RunCommand("settings get secure bluetooth_name")
 	if err != nil {
 		return
 	}
