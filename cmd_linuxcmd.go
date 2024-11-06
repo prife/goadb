@@ -97,6 +97,7 @@ func parseGpu(resp []byte) (info GpuInfo, err error) {
 	match := gpuRegrex.FindSubmatch(resp)
 	if len(match) == 0 {
 		err = fmt.Errorf("can't found GLES: %s", resp)
+		return
 	}
 
 	info.Vendor = string(match[1])
