@@ -3,6 +3,7 @@ package adb
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -158,6 +159,24 @@ WritebackTmp:          0 kB
 	assert.Equal(t, info["MemAvailable"], uint64(17117864))
 }
 
+func Test_parseMemoryInfoFile(t *testing.T) {
+	output, err := os.ReadFile("meminfo.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := parseMemoryInfo(output)
+	assert.Nil(t, err)
+	assert.Equal(t, len(info), 34)
+	for k, v := range info {
+		fmt.Printf("%-16s %9d kB\n", k, v)
+	}
+
+	assert.Equal(t, info["MemTotal"], uint64(3681628))
+	assert.Equal(t, info["MemFree"], uint64(273652))
+	assert.Equal(t, info["MemAvailable"], uint64(2243756))
+}
+
 func Test_parseDisplaySize(t *testing.T) {
 	output := []byte(`
 Physical size: 1440x2560
@@ -259,6 +278,17 @@ Hardware	: Hisilicon Kirin970
 	info, err := parseCpuInfo(output)
 	_ = info
 	_ = err
+}
+
+func Test_parseCpuInfoFile(t *testing.T) {
+	output, err := os.ReadFile("cpuinfo.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := parseCpuInfo(output)
+	assert.Nil(t, err)
+	fmt.Printf("info %#v\n", info)
 }
 
 func TestDevice_Reboot(t *testing.T) {

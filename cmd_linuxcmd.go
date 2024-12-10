@@ -175,7 +175,7 @@ func (d *Device) GetWlanInfo() (info EtherInfo, err error) {
 }
 
 var (
-	meminfoRegex = regexp.MustCompile(`(?m)\s*(\S+)\:\s*(\d+)\s*kB$`)
+	meminfoRegex = regexp.MustCompile(`(?m)\s*(\S+)\:\s*(\d+)\s*kB\s*$`)
 )
 
 // in kB
@@ -282,7 +282,7 @@ type CpuInfo struct {
 }
 
 var (
-	cpuInfoRegex = regexp.MustCompile(`(?m)(\w+\s*\w+)\s*:\s*(.*)$`)
+	cpuInfoRegex = regexp.MustCompile(`(?m)(\w+\s*\w+)\s*:\s*(\S+)\s*$`)
 )
 
 type CpuInfoProp struct {
