@@ -39,7 +39,8 @@ func (s DeviceStateChangedEvent) WentOffline() bool {
 }
 
 type deviceWatcherImpl struct {
-	server server
+	server  server
+	scanner wire.Scanner
 
 	// If an error occurs, it is stored here and eventChan is close immediately after.
 	err atomic.Value
@@ -80,7 +81,9 @@ func (w *DeviceWatcher) Err() error {
 // Shutdown stops the watcher from listening for events and closes the channel returned
 // from C.
 func (w *DeviceWatcher) Shutdown() {
-	// TODO(z): Implement.
+	if w.scanner != nil {
+		w.scanner.Close()
+	}
 }
 
 func (w *deviceWatcherImpl) reportErr(err error) {
@@ -111,6 +114,7 @@ func publishDevices(watcher *deviceWatcherImpl) {
 			watcher.reportErr(err)
 			return
 		}
+		watcher.scanner = scanner
 
 		finished, err = publishDevicesUntilError(scanner, watcher.eventChan, &lastKnownStates)
 
