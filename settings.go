@@ -35,6 +35,29 @@ func (d *Device) GetDeviceName() (name string, err error) {
 	return
 }
 
+// GetMarketName returns the market name of the device.
+func (d *Device) GetMarketName() (name string, err error) {
+	candidates := []string{
+		// 高优先级
+		"ro.product.marketname",
+		"ro.config.marketing_name",
+		// 品牌特有
+		"ro.vendor.oplus.market.name",
+		"ro.vivo.market.name",
+		// 保底-低优先级
+		"ro.product.name",
+		"ro.product.model",
+	}
+
+	for _, prop := range candidates {
+		name, _ = d.GetProperty(prop)
+		if checkNameValid(name) {
+			return
+		}
+	}
+	return
+}
+
 func (d *Device) SetAccelerometerRotation(enable bool) error {
 	var value string
 	if enable {
