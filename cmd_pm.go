@@ -152,7 +152,9 @@ func (d *Device) PmInstall(ctx context.Context, apkPath string, reinstall bool, 
 
 	resp = bytes.TrimSpace(resp)
 	// err maybe nil, check response to determine error
-	if bytes.Equal(resp, []byte("Success")) {
+	// Use Contains instead of Equal to be compatible with OEM ROMs
+	// that output extra info like "com.xxx/.Activity Success"
+	if bytes.Contains(resp, []byte("Success")) {
 		return nil
 	}
 	return errors.New(string(resp))
