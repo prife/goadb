@@ -11,6 +11,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/prife/goadb/wire"
 )
 
 type shellTransport struct {
@@ -47,8 +49,14 @@ func (s *shellTransport) Send(command shellMessageType, data []byte) (err error)
 	}
 
 	debugLog(fmt.Sprintf("--> %v", msg.Bytes()))
-	_, err = s.sock.Write(msg.Bytes())
-	return
+	written, err := s.sock.Write(msg.Bytes())
+	if err != nil {
+		return err
+	}
+	if written != msg.Len() {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 func (s *shellTransport) Read() (command shellMessageType, data []byte, err error) {
@@ -63,6 +71,10 @@ func (s *shellTransport) Read() (command shellMessageType, data []byte, err erro
 	err = binary.Read(s.sock, binary.LittleEndian, &msgLen)
 	if err != nil {
 		return command, nil, fmt.Errorf("failed to read response msg len: %w", err)
+	}
+	if msgLen > wire.MaxPayload {
+		return command, nil, fmt.Errorf(
+			"shell response payload %d exceeds maximum %d", msgLen, wire.MaxPayload)
 	}
 
 	data = make([]byte, int(msgLen))

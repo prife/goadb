@@ -3,13 +3,276 @@ package adb
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/prife/goadb/wire"
 )
+
+// ShellExitCodeUnavailable is returned when Shell cannot obtain a remote exit
+// status because validation, transport, protocol, writer, or context handling
+// failed.
+const ShellExitCodeUnavailable = -1
+
+// ErrShellV2Unsupported reports that the selected device does not advertise
+// the ADB shell_v2 feature.
+//
+// Shell deliberately does not fall back to shell v1. The v1 protocol merges
+// stdout and stderr and does not report a trustworthy remote exit status.
+// Callers that can tolerate those limitations may explicitly use ShellV1Raw
+// after checking this error with errors.Is.
+var ErrShellV2Unsupported = errors.New("adb shell v2 is unsupported")
+
+type shellResult struct {
+	exitCode int
+	err      error
+}
+
+// Shell runs one argv-style command using ADB's shell v2 protocol.
+//
+// Stdout and stderr are streamed without text conversion, so stdout may be a
+// binary file. A nil writer discards that stream. A non-zero remote exit code
+// is returned as exitCode with a nil error; err is reserved for validation,
+// transport, protocol, writer, and context failures. When err is non-nil,
+// exitCode is ShellExitCodeUnavailable.
+//
+// command and args are shell-quoted independently. Shell does not accept a
+// preformatted command line. Pass "sh", "-c", script as command and args when
+// shell syntax is intentionally required.
+func (c *Device) Shell(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	command string,
+	args ...string,
+) (exitCode int, err error) {
+	if ctx == nil {
+		return ShellExitCodeUnavailable, wrapClientError(
+			errors.New("context cannot be nil"), c, "Shell")
+	}
+	if err := ctx.Err(); err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+
+	commandLine, err := prepareShellCommandLine(command, args...)
+	if err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+
+	features, err := c.DeviceFeatures()
+	if err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+	if !features[FeatureShell2] {
+		return ShellExitCodeUnavailable, wrapClientError(
+			ErrShellV2Unsupported, c, "Shell")
+	}
+
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
+	if err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+	defer conn.Close()
+
+	req := "shell,v2,raw:" + commandLine
+	if err := conn.SendMessage([]byte(req)); err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+	if _, err := readStatusWithTimeout(conn, req, c.CmdTimeoutShort); err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+
+	transport := newShellTransport(conn, 0)
+	if err := transport.Send(shellCloseStdin, nil); err != nil {
+		return ShellExitCodeUnavailable, wrapClientError(err, c, "Shell")
+	}
+
+	resultCh := make(chan shellResult, 1)
+	go func() {
+		code, readErr := readShellV2(transport, stdout, stderr)
+		resultCh <- shellResult{exitCode: code, err: readErr}
+	}()
+
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			return ShellExitCodeUnavailable, wrapClientError(result.err, c, "Shell")
+		}
+		return result.exitCode, nil
+	case <-ctx.Done():
+		// Closing the connection unblocks the reader. Wait for it to finish so
+		// cancellation never leaves a background shell goroutine behind.
+		closeErr := conn.Close()
+		<-resultCh
+		cancelErr := ctx.Err()
+		if closeErr != nil {
+			cancelErr = fmt.Errorf("%w; closing shell connection: %v", cancelErr, closeErr)
+		}
+		return ShellExitCodeUnavailable, wrapClientError(cancelErr, c, "Shell")
+	}
+}
+
+// ShellV1Raw runs one safely quoted argv-style command using the legacy ADB
+// shell protocol and streams its combined output without text conversion.
+//
+// This API exists for old devices that return ErrShellV2Unsupported from
+// Shell. The legacy protocol combines stdout and stderr, has no remote exit
+// status, and cannot distinguish normal EOF from a transport disconnect.
+// Therefore a nil error only means that the raw stream ended. Callers pulling
+// a file must independently verify its expected byte size and contents.
+//
+// Cancellation closes the connection and waits for the reader goroutine to
+// stop. A nil output writer discards the stream.
+func (c *Device) ShellV1Raw(
+	ctx context.Context,
+	output io.Writer,
+	command string,
+	args ...string,
+) error {
+	if ctx == nil {
+		return wrapClientError(errors.New("context cannot be nil"), c, "ShellV1Raw")
+	}
+	if err := ctx.Err(); err != nil {
+		return wrapClientError(err, c, "ShellV1Raw")
+	}
+
+	commandLine, err := prepareShellCommandLine(command, args...)
+	if err != nil {
+		return wrapClientError(err, c, "ShellV1Raw")
+	}
+
+	conn, err := c.dialDevice(c.CmdTimeoutShort)
+	if err != nil {
+		return wrapClientError(err, c, "ShellV1Raw")
+	}
+	defer conn.Close()
+
+	req := "shell:" + commandLine
+	if err := conn.SendMessage([]byte(req)); err != nil {
+		return wrapClientError(err, c, "ShellV1Raw")
+	}
+	if _, err := readStatusWithTimeout(conn, req, c.CmdTimeoutShort); err != nil {
+		return wrapClientError(err, c, "ShellV1Raw")
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		resultCh <- readShellV1Raw(conn, output)
+	}()
+
+	select {
+	case resultErr := <-resultCh:
+		return wrapClientError(resultErr, c, "ShellV1Raw")
+	case <-ctx.Done():
+		closeErr := conn.Close()
+		<-resultCh
+		cancelErr := ctx.Err()
+		if closeErr != nil {
+			cancelErr = fmt.Errorf("%w; closing shell connection: %v", cancelErr, closeErr)
+		}
+		return wrapClientError(cancelErr, c, "ShellV1Raw")
+	}
+}
+
+func readShellV1Raw(reader io.Reader, output io.Writer) error {
+	if output == nil {
+		output = io.Discard
+	}
+	buffer := make([]byte, wire.SyncMaxChunkSize)
+	for {
+		count, readErr := reader.Read(buffer)
+		if count > 0 {
+			if err := writeShellStream(output, buffer[:count]); err != nil {
+				return fmt.Errorf("write legacy shell output: %w", err)
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return nil
+		}
+		if readErr != nil {
+			return fmt.Errorf("read legacy shell output: %w", readErr)
+		}
+		if count == 0 {
+			return fmt.Errorf("read legacy shell output: %w", io.ErrNoProgress)
+		}
+	}
+}
+
+func readShellV2(transport shellTransport, stdout, stderr io.Writer) (int, error) {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	if stderr == nil {
+		stderr = io.Discard
+	}
+
+	for {
+		messageType, payload, err := transport.Read()
+		if errors.Is(err, io.EOF) {
+			return ShellExitCodeUnavailable, &ExitMissingError{}
+		}
+		if err != nil {
+			return ShellExitCodeUnavailable, err
+		}
+
+		switch messageType {
+		case shellStdout:
+			if err := writeShellStream(stdout, payload); err != nil {
+				return ShellExitCodeUnavailable, fmt.Errorf("write shell stdout: %w", err)
+			}
+		case shellStderr:
+			if err := writeShellStream(stderr, payload); err != nil {
+				return ShellExitCodeUnavailable, fmt.Errorf("write shell stderr: %w", err)
+			}
+		case shellExit:
+			if len(payload) != 1 {
+				return ShellExitCodeUnavailable, fmt.Errorf(
+					"invalid shell exit payload length %d", len(payload))
+			}
+			return int(payload[0]), nil
+		default:
+			return ShellExitCodeUnavailable, fmt.Errorf(
+				"unexpected shell message type %d", messageType)
+		}
+	}
+}
+
+func writeShellStream(writer io.Writer, payload []byte) error {
+	written, err := writer.Write(payload)
+	if err != nil {
+		return err
+	}
+	if written != len(payload) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
+func prepareShellCommandLine(command string, args ...string) (string, error) {
+	if isBlank(command) {
+		return "", fmt.Errorf("%w: command cannot be empty", wire.ErrAssertion)
+	}
+
+	argv := make([]string, 0, len(args)+1)
+	argv = append(argv, command)
+	argv = append(argv, args...)
+	for index, arg := range argv {
+		if strings.IndexByte(arg, 0) >= 0 {
+			return "", fmt.Errorf(
+				"%w: argv at index %d contains a NUL byte", wire.ErrParse, index)
+		}
+		argv[index] = quoteShellArg(arg)
+	}
+	return strings.Join(argv, " "), nil
+}
+
+func quoteShellArg(arg string) string {
+	return "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
+}
 
 // RunShellCommand runs the specified commands on a shell on the device.
 // From the Android docs:
