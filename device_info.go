@@ -21,6 +21,11 @@ type DeviceInfo struct {
 	DeviceInfo  string
 	TransportID int
 
+	// AdbdPort is WeTest's optional adbd_port attribute from host:devices-l.
+	// It identifies the host forwarding port, not persist.adb.tcp.port on the
+	// device. Standard ADB, missing attributes and invalid ports leave it zero.
+	AdbdPort int
+
 	// Only set for devices connected via USB.
 	Usb string
 }
@@ -44,6 +49,11 @@ func newDevice(serial, state string, attrs map[string]string) (*DeviceInfo, erro
 		}
 	}
 
+	var adbdPort int
+	if value, err := strconv.Atoi(attrs["adbd_port"]); err == nil && value > 0 && value <= 65535 {
+		adbdPort = value
+	}
+
 	return &DeviceInfo{
 		Serial:      serial,
 		State:       state,
@@ -52,6 +62,7 @@ func newDevice(serial, state string, attrs map[string]string) (*DeviceInfo, erro
 		DeviceInfo:  attrs["device"],
 		Usb:         attrs["usb"],
 		TransportID: tid,
+		AdbdPort:    adbdPort,
 	}, nil
 }
 

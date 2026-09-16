@@ -85,8 +85,7 @@ func (c *Device) State() (DeviceState, error) {
 		}
 		return StateInvalid, wrapClientError(err, c, "State")
 	}
-	state, err := parseDeviceState(attr)
-	return state, wrapClientError(err, c, "State")
+	return parseDeviceState(attr), nil
 }
 
 func (c *Device) DeviceInfo() (*DeviceInfo, error) {

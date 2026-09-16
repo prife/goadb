@@ -2,6 +2,7 @@ package adb
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -62,6 +63,21 @@ func (c *Adb) Device(descriptor DeviceDescriptor) *Device {
 
 func (c *Adb) NewDeviceWatcher() *DeviceWatcher {
 	return newDeviceWatcher(c.server)
+}
+
+// NewDeviceWatcherWithContext subscribes to a server whose lifecycle is managed
+// by someone else, such as a separately deployed tadbd. It reconnects after a
+// stream failure instead of ending the subscription, and it never starts or
+// restarts the server. Cancel ctx or call Shutdown to end it; both close the
+// connection and the event channel.
+func (c *Adb) NewDeviceWatcherWithContext(ctx context.Context) *DeviceWatcher {
+	s := c.server
+	if real, ok := s.(*realServer); ok {
+		watchServer := *real
+		watchServer.config.AutoStart = false
+		s = &watchServer
+	}
+	return startDeviceWatcher(newDeviceWatcherImpl(ctx, s, true))
 }
 
 // ServerVersion asks the ADB server for its internal version number.
