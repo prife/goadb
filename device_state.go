@@ -1,12 +1,8 @@
 package adb
 
-import (
-	"fmt"
+import "strings"
 
-	"github.com/prife/goadb/wire"
-)
-
-// DeviceState represents one of the 3 possible states adb will report devices.
+// DeviceState represents a device's availability for ordinary adb operations.
 // A device can be communicated with when it's in StateOnline.
 // A USB device will make the following state transitions:
 //	Plugged in: StateDisconnected->StateOffline->StateOnline
@@ -32,12 +28,19 @@ var deviceStateStrings = map[string]DeviceState{
 	"unauthorized": StateUnauthorized,
 	"authorizing":  StateAuthorizing,
 	"host":         StateHost,
+	"bootloader":   StateOffline,
+	"recovery":     StateOffline,
+	"sideload":     StateOffline,
+	"connecting":   StateOffline,
 }
 
-func parseDeviceState(str string) (DeviceState, error) {
-	state, ok := deviceStateStrings[str]
-	if !ok {
-		return StateInvalid, fmt.Errorf("%w: invalid device state: '%s'", wire.ErrParse, str)
+// parseDeviceState maps a state reported by the server. Unrecognized states are
+// StateOffline: adb keeps adding them ("unknown", the multi-word no-permissions
+// text, ...) and none of them are usable, so a single odd device must not fail
+// the whole device list.
+func parseDeviceState(str string) DeviceState {
+	if state, ok := deviceStateStrings[strings.TrimSpace(str)]; ok {
+		return state
 	}
-	return state, nil
+	return StateOffline
 }

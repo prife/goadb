@@ -1,20 +1,29 @@
 package adb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"math/rand"
-	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/prife/goadb/wire"
 )
 
+// trackHandshakeTimeout bounds the host:track-devices handshake and the first
+// device list. A server that accepts the connection but never answers would
+// otherwise block the worker forever and defeat disconnect reporting. It is a
+// "something is badly wrong" bound, not a tuning knob; the established stream
+// that follows is idle by design and carries no deadline.
+const trackHandshakeTimeout = 30 * time.Second
+
 // DeviceWatcher publishes device status change events.
-// If the server dies while listening for events, it restarts the server.
+// The legacy constructor restarts the server if it dies. The context
+// constructor reconnects but never touches the server lifecycle.
 type DeviceWatcher struct {
 	*deviceWatcherImpl
 }
@@ -40,26 +49,46 @@ func (s DeviceStateChangedEvent) WentOffline() bool {
 
 type deviceWatcherImpl struct {
 	server server
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
 
-	// If an error occurs, it is stored here and eventChan is close immediately after.
+	// reconnect selects the externally-managed-server behavior: retry forever
+	// and never call server.Start.
+	reconnect     bool
+	retryDelay    time.Duration
+	maxRetryDelay time.Duration
+	offlineAfter  time.Duration
+	lastLog       time.Time
+
+	// conn is the connection the worker is blocked on. Closing it is the only
+	// way to interrupt a blocked read, so Shutdown and the context both do it.
+	connMu sync.Mutex
+	conn   wire.IConn
+
+	// The terminal error, stored before eventChan is closed.
 	err atomic.Value
 
 	eventChan chan DeviceStateChangedEvent
 }
 
 func newDeviceWatcher(server server) *DeviceWatcher {
-	watcher := &DeviceWatcher{&deviceWatcherImpl{
-		server:    server,
-		eventChan: make(chan DeviceStateChangedEvent),
-	}}
+	return startDeviceWatcher(newDeviceWatcherImpl(context.Background(), server, false))
+}
 
-	runtime.SetFinalizer(watcher, func(watcher *DeviceWatcher) {
-		watcher.Shutdown()
-	})
+func newDeviceWatcherImpl(ctx context.Context, server server, reconnect bool) *deviceWatcherImpl {
+	ctx, cancel := context.WithCancel(ctx)
+	return &deviceWatcherImpl{
+		server: server, ctx: ctx, cancel: cancel,
+		done: make(chan struct{}), eventChan: make(chan DeviceStateChangedEvent),
+		reconnect: reconnect, retryDelay: time.Second,
+		maxRetryDelay: 30 * time.Second, offlineAfter: 30 * time.Second,
+	}
+}
 
-	go publishDevices(watcher.deviceWatcherImpl)
-
-	return watcher
+func startDeviceWatcher(impl *deviceWatcherImpl) *DeviceWatcher {
+	go publishDevices(impl)
+	return &DeviceWatcher{impl}
 }
 
 // C returns a channel than can be received on to get events.
@@ -68,8 +97,15 @@ func (w *DeviceWatcher) C() <-chan DeviceStateChangedEvent {
 	return w.eventChan
 }
 
-// Err returns the error that caused the channel returned by C to be closed, if C is closed.
-// If C is not closed, its return value is undefined.
+// Device creates a client for a discovered serial without performing I/O.
+// A context watcher hands out AutoStart=false clients, so operations on them
+// never start the adb server either.
+func (w *DeviceWatcher) Device(serial string) *Device {
+	return (&Adb{server: w.server}).Device(DeviceWithSerial(serial))
+}
+
+// Err returns the error that closed the channel returned by C. Shutdown and
+// parent cancellation are clean exits and leave it nil.
 func (w *DeviceWatcher) Err() error {
 	if err, ok := w.err.Load().(error); ok {
 		return err
@@ -77,122 +113,246 @@ func (w *DeviceWatcher) Err() error {
 	return nil
 }
 
-// Shutdown stops the watcher from listening for events and closes the channel returned
-// from C.
+// Shutdown stops the watcher, closes the channel returned from C and waits for
+// the worker to exit. It is idempotent and safe to call from any goroutine.
 func (w *DeviceWatcher) Shutdown() {
-	// TODO(z): Implement.
+	w.cancel()
+	w.closeConn()
+	<-w.done
 }
 
+func (w *deviceWatcherImpl) closeConn() {
+	w.connMu.Lock()
+	conn := w.conn
+	w.conn = nil
+	w.connMu.Unlock()
+	if conn != nil {
+		_ = conn.Close()
+	}
+}
+
+func (w *deviceWatcherImpl) attachConn(conn wire.IConn) error {
+	w.connMu.Lock()
+	defer w.connMu.Unlock()
+	if err := w.ctx.Err(); err != nil {
+		_ = conn.Close()
+		return err
+	}
+	w.conn = conn
+	return nil
+}
+
+// send delivers an event, applying backpressure until the consumer reads it.
+// It returns false once the watcher is cancelled, so a slow or absent consumer
+// can never pin the worker or make it drop events.
+func (w *deviceWatcherImpl) send(event DeviceStateChangedEvent) bool {
+	select {
+	case <-w.ctx.Done():
+		return false
+	case w.eventChan <- event:
+		return true
+	}
+}
+
+// reportErr records a terminal error. Cancellation is a clean exit, so Err()
+// stays nil after Shutdown; a parent deadline is still an error.
 func (w *deviceWatcherImpl) reportErr(err error) {
-	w.err.Store(err)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		w.err.Store(err)
+	}
 }
 
-// publishDevices reads device lists from scanner, calculates diffs, and publishes events on
-// eventChan.
-// Returns when scanner returns an error.
-// Doesn't refer directly to a *DeviceWatcher so it can be GCed (which will,
-// in turn, close Scanner and stop this goroutine).
-//
-// TODO: to support shutdown, spawn a new goroutine each time a server connection is established.
-// This goroutine should read messages and send them to a message channel. Can write errors directly
-// to errVal. publishDevicesUntilError should take the msg chan and the scanner and select on the msg chan and stop chan, and if the stop
-// chan sends, close the scanner and return true. If the msg chan closes, just return false.
-// publishDevices can look at ret val: if false and err == EOF, reconnect. If false and other error, report err
-// and abort. If true, report no error and stop.
+// publishDevices reads device lists from the server, calculates diffs, and
+// publishes events on eventChan until the watcher is cancelled or hits a
+// terminal error.
 func publishDevices(watcher *deviceWatcherImpl) {
+	defer close(watcher.done)
 	defer close(watcher.eventChan)
+	defer watcher.cancel()
+	defer watcher.closeConn()
+	// Closing the connection is what unblocks a read or handshake that is
+	// already in flight when the caller cancels.
+	defer context.AfterFunc(watcher.ctx, watcher.closeConn)()
 
 	var lastKnownStates map[string]DeviceState
-	finished := false
+	var outageStart time.Time
+	failures := 0
 
 	for {
-		scanner, err := connectToTrackDevices(watcher.server)
-		if err != nil {
+		if err := watcher.ctx.Err(); err != nil {
 			watcher.reportErr(err)
 			return
 		}
 
-		finished, err = publishDevicesUntilError(scanner, watcher.eventChan, &lastKnownStates)
+		gotList := false
+		conn, err := connectToTrackDevices(watcher)
+		if err == nil {
+			gotList, err = publishDevicesUntilError(conn, watcher, &lastKnownStates)
+		}
+		watcher.closeConn()
 
-		if finished {
-			scanner.Close()
+		if ctxErr := watcher.ctx.Err(); ctxErr != nil {
+			watcher.reportErr(ctxErr)
 			return
 		}
+		if gotList {
+			outageStart, failures = time.Time{}, 0
+		}
 
-		if errors.Is(err, wire.ErrConnectionReset) {
-			// The server died, restart and reconnect.
-			if realServer, ok := watcher.server.(*realServer); ok {
-				if !realServer.config.AutoStart {
-					watcher.reportErr(fmt.Errorf("server killed"))
-					return
+		if watcher.reconnect {
+			if outageStart.IsZero() {
+				outageStart = time.Now()
+			}
+			// A brief interruption is not a device disconnect: keep the last
+			// list so that reconnecting re-diffs against it and produces no
+			// events at all. Only a sustained outage evicts, and only once.
+			if len(lastKnownStates) > 0 && time.Since(outageStart) >= watcher.offlineAfter {
+				for serial, state := range lastKnownStates {
+					if !watcher.send(DeviceStateChangedEvent{serial, state, StateDisconnected}) {
+						watcher.reportErr(watcher.ctx.Err())
+						return
+					}
 				}
+				lastKnownStates = nil
 			}
-
-			// report all devices removed
-			for serial, deviceState := range lastKnownStates {
-				watcher.eventChan <- DeviceStateChangedEvent{serial, deviceState, StateDisconnected}
-			}
-			lastKnownStates = nil
-
-			// Delay by a random [0ms, 500ms) in case multiple DeviceWatchers are trying to
-			// start the same server.
-			delay := time.Duration(rand.Intn(500)) * time.Millisecond
-
-			log.Printf("[DeviceWatcher] server died, restarting in %s…", delay)
-			time.Sleep(delay)
-			if err := watcher.server.Start(); err != nil {
-				log.Println("[DeviceWatcher] error restarting server, giving up")
-				watcher.reportErr(err)
+			failures++
+			delay := watcher.backoff(failures)
+			watcher.logRetry(err, delay)
+			if !watcher.wait(delay) {
+				watcher.reportErr(watcher.ctx.Err())
 				return
-			} // Else server should be running, continue listening.
-		} else {
+			}
+			continue
+		}
+
+		if !errors.Is(err, wire.ErrConnectionReset) {
 			// Unknown error, don't retry.
 			watcher.reportErr(err)
 			return
 		}
+
+		// The server died, restart and reconnect.
+		if realServer, ok := watcher.server.(*realServer); ok {
+			if !realServer.config.AutoStart {
+				watcher.reportErr(fmt.Errorf("server killed"))
+				return
+			}
+		}
+
+		// report all devices removed
+		for serial, deviceState := range lastKnownStates {
+			if !watcher.send(DeviceStateChangedEvent{serial, deviceState, StateDisconnected}) {
+				watcher.reportErr(watcher.ctx.Err())
+				return
+			}
+		}
+		lastKnownStates = nil
+
+		// Delay by a random [0ms, 500ms) in case multiple DeviceWatchers are trying to
+		// start the same server.
+		delay := time.Duration(rand.Intn(500)) * time.Millisecond
+		log.Printf("[DeviceWatcher] server died, restarting in %s…", delay)
+		if !watcher.wait(delay) {
+			watcher.reportErr(watcher.ctx.Err())
+			return
+		}
+		if err := watcher.server.Start(); err != nil {
+			log.Println("[DeviceWatcher] error restarting server, giving up")
+			watcher.reportErr(err)
+			return
+		} // Else server should be running, continue listening.
 	}
 }
 
-func connectToTrackDevices(server server) (wire.Scanner, error) {
-	conn, err := server.Dial()
+// backoff grows retryDelay towards maxRetryDelay and subtracts up to 20% of
+// jitter, so agents restarted together do not retry in lockstep.
+func (w *deviceWatcherImpl) backoff(failures int) time.Duration {
+	delay := w.retryDelay
+	for i := 1; i < failures && delay < w.maxRetryDelay; i++ {
+		delay *= 2
+	}
+	if delay > w.maxRetryDelay {
+		delay = w.maxRetryDelay
+	}
+	return delay - time.Duration(rand.Int63n(int64(delay)/5+1))
+}
+
+// logRetry reports an ongoing outage at most once a minute. Reconnecting is
+// expected, so it must not flood the log of a host whose server is down.
+func (w *deviceWatcherImpl) logRetry(err error, delay time.Duration) {
+	if !w.lastLog.IsZero() && time.Since(w.lastLog) < time.Minute {
+		return
+	}
+	w.lastLog = time.Now()
+	log.Printf("[DeviceWatcher] track-devices interrupted: %v; retrying in %s", err, delay)
+}
+
+func (w *deviceWatcherImpl) wait(delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-w.ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func connectToTrackDevices(w *deviceWatcherImpl) (wire.IConn, error) {
+	conn, err := w.server.Dial()
 	if err != nil {
 		return nil, err
 	}
-
+	if err := w.attachConn(conn); err != nil {
+		return nil, err
+	}
+	// publishDevicesUntilError clears this deadline once the list arrives.
+	if err := conn.SetDeadline(time.Now().Add(trackHandshakeTimeout)); err != nil {
+		return nil, err
+	}
 	if err := conn.SendMessage([]byte("host:track-devices")); err != nil {
-		conn.Close()
 		return nil, err
 	}
-
 	if _, err := conn.ReadStatus("host:track-devices"); err != nil {
-		conn.Close()
 		return nil, err
 	}
-
 	return conn, nil
 }
 
-func publishDevicesUntilError(scanner wire.Scanner, eventChan chan<- DeviceStateChangedEvent, lastKnownStates *map[string]DeviceState) (finished bool, err error) {
+// publishDevicesUntilError reports whether at least one device list was read,
+// which is what tells the caller the server is healthy again.
+func publishDevicesUntilError(conn wire.IConn, w *deviceWatcherImpl, lastKnownStates *map[string]DeviceState) (bool, error) {
+	gotList := false
 	for {
-		msg, err := scanner.ReadMessage()
+		msg, err := conn.ReadMessage()
 		if err != nil {
-			return false, err
+			return gotList, err
+		}
+		if !gotList {
+			// An established track stream is idle by design and must not
+			// expire. A failure here means the connection is already gone, and
+			// the next read reports it; the list just received is still valid,
+			// so it must not be discarded.
+			_ = conn.SetDeadline(time.Time{})
 		}
 
 		deviceStates, err := parseDeviceStates(string(msg))
 		if err != nil {
-			return false, err
+			return gotList, err
 		}
+		gotList = true
 
 		for _, event := range calculateStateDiffs(*lastKnownStates, deviceStates) {
-			eventChan <- event
+			if !w.send(event) {
+				return gotList, w.ctx.Err()
+			}
 		}
 		*lastKnownStates = deviceStates
 	}
 }
 
-func parseDeviceStates(msg string) (states map[string]DeviceState, err error) {
-	states = make(map[string]DeviceState)
+func parseDeviceStates(msg string) (map[string]DeviceState, error) {
+	states := make(map[string]DeviceState)
 
 	for lineNum, line := range strings.Split(msg, "\n") {
 		if len(line) == 0 {
@@ -201,17 +361,12 @@ func parseDeviceStates(msg string) (states map[string]DeviceState, err error) {
 
 		fields := strings.Split(line, "\t")
 		if len(fields) != 2 {
-			err = fmt.Errorf("%w: invalid device state line %d: %s", wire.ErrParse, lineNum, line)
-			return
+			return nil, fmt.Errorf("%w: invalid device state line %d: %s", wire.ErrParse, lineNum, line)
 		}
-
-		serial, stateString := fields[0], fields[1]
-		var state DeviceState
-		state, err = parseDeviceState(stateString)
-		states[serial] = state
+		states[fields[0]] = parseDeviceState(fields[1])
 	}
 
-	return
+	return states, nil
 }
 
 func calculateStateDiffs(oldStates, newStates map[string]DeviceState) (events []DeviceStateChangedEvent) {

@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -36,6 +37,18 @@ func TestParseDeviceStatesMalformed(t *testing.T) {
 
 	assert.True(t, errors.Is(err, wire.ErrParse))
 	assert.EqualError(t, err, "ParseError: invalid device state line 1: 0x0x0x0x")
+}
+
+func TestParseDeviceStatesIsolatesUnusableDevice(t *testing.T) {
+	// One device in recovery must not invalidate the rest of the list.
+	for _, message := range []string{
+		"bad\trecovery\ngood\tdevice\n", "good\tdevice\nbad\trecovery\n",
+	} {
+		states, err := parseDeviceStates(message)
+		assert.NoError(t, err)
+		assert.Equal(t, StateOffline, states["bad"])
+		assert.Equal(t, StateOnline, states["good"])
+	}
 }
 
 func TestCalculateStateDiffsUnchangedEmpty(t *testing.T) {
@@ -212,18 +225,16 @@ func TestPublishDevicesRestartsServer(t *testing.T) {
 		Errs: []error{
 			nil, nil, nil, // Successful dial.
 			fmt.Errorf("%w: failed first read", wire.ErrConnectionReset),
+			nil, // Close the failed connection before retrying.
 			fmt.Errorf("%w: failed redial", wire.ErrServerNotAvailable),
 		},
 	}
-	watcher := deviceWatcherImpl{
-		server:    server,
-		eventChan: make(chan DeviceStateChangedEvent),
-	}
+	watcher := newDeviceWatcherImpl(context.Background(), server, false)
 
-	publishDevices(&watcher)
+	publishDevices(watcher)
 
 	assert.Equal(t, []string{"host:track-devices"}, server.Requests)
-	assert.Equal(t, []string{"Dial", "SendMessage", "ReadStatus", "ReadMessage", "Start", "Dial"}, server.Trace)
+	assert.Equal(t, []string{"Dial", "SendMessage", "ReadStatus", "ReadMessage", "Close", "Start", "Dial"}, server.Trace)
 	err := watcher.err.Load().(error)
 	assert.True(t, errors.Is(err, wire.ErrServerNotAvailable))
 }
